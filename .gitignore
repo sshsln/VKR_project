@@ -1,0 +1,51 @@
+# Игнорируем файлы IDE/редакторов
+.idea/
+.vscode/
+*.swp
+*.swo
+pycache/
+
+# Виртуальное окружение
+venv/
+.env/
+.envrc
+
+# Файлы БД и кеша
+*.db
+*.sqlite
+*.db-journal
+*.sqlite-journal
+
+# Логи и кеш
+*.log
+*.cache
+.pytest_cache/
+
+# Файлы Python
+*.py[cod]
+*$py.class
+
+# Дистрибутивы и сборки
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Тестовые данные
+/test_data/
+/tmp/
+
+# Файлы настроек
+*.env
+*.ini
+*.cfg
+
+# Документация
+/docs/_build/
+
+# Временные файлы Windows
+Thumbs.db
+[Dd]esktop.ini
+
+# Файлы кеша Python для Windows
+pyvenv.cfg
