@@ -1,3 +1,6 @@
+####################
+# Файл main.py
+
 from fastapi import FastAPI, Depends, HTTPException, status
 from app.db import schemas, crud
 from app.api import auth
@@ -5,7 +8,11 @@ from app.db.session import SessionLocal, engine
 from sqlalchemy.orm import Session
 from app.db.session import Base
 
-app = FastAPI(title="Drone Video Service")
+app = FastAPI(
+    title="Drone Video Service",
+    version="1.0",
+    description="API для сервиса автоматизированной видеосъёмки"
+)
 
 # Создаём таблицы в БД (для теста)
 Base.metadata.create_all(bind=engine)  # Теперь работает!
@@ -36,6 +43,6 @@ def login(user: schemas.UserLogin, db: Session = Depends(get_db)):
     access_token = auth.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
 
-#@app.get("/users/me")
-#def read_current_user(current_user: schemas.User = Depends(auth.get_current_user)):
-#    return current_user
+@app.get("/users/me")
+def read_current_user(current_user: schemas.User = Depends(auth.get_current_user)):
+    return current_user

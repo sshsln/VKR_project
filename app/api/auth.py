@@ -1,3 +1,6 @@
+####################
+# Файл auth.py
+
 from datetime import datetime, timedelta
 from jose import JWTError, jwt
 from fastapi import Depends, HTTPException, status
