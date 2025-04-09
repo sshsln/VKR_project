@@ -1,7 +1,7 @@
 import uuid
-
-from pydantic import EmailStr
+from pydantic import EmailStr, field_validator
 from sqlmodel import Field, SQLModel
+from uuid import UUID
 
 
 class UserBase(SQLModel):
@@ -58,5 +58,14 @@ class Token(SQLModel):
     access_token: str
     token_type: str = "bearer"
 
+
 class TokenPayload(SQLModel):
-    sub: str | None = None
+    sub: UUID | None = None
+
+    @field_validator("sub", mode="before")
+    def validate_sub(cls, value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            return UUID(value)
+        return value

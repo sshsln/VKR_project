@@ -177,4 +177,3 @@ def delete_user(
     session.delete(user)
     session.commit()
     return Message(message="User deleted successfully")
-
