@@ -3,7 +3,8 @@ from sqlmodel import SQLModel
 
 from app import crud
 from app.core.config import settings
-from app.models import User, UserCreate
+from app.models import User
+from app.schemas import UserCreate
 
 engine = create_engine(settings.SQLALCHEMY_DATABASE_URI, echo=True)
 SQLModel.metadata.create_all(engine)
