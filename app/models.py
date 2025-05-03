@@ -159,6 +159,27 @@ class OrderStatusUpdate(BaseModel):
     status: OrderStatus
 
 
+class OrderUpdate(BaseModel):
+    status: Optional[OrderStatus] = None
+
+    @validator("status")
+    def validate_status_transition(cls, v, values):
+        if not v:
+            return v
+        # Предполагаем, что текущий статус будет передан в эндпоинте
+        current_status = values.get("current_status", None)
+        allowed_transitions = {
+            OrderStatus.new: [OrderStatus.in_processing, OrderStatus.cancelled],
+            OrderStatus.in_processing: [OrderStatus.in_progress, OrderStatus.cancelled, OrderStatus.new],
+            OrderStatus.in_progress: [OrderStatus.completed],
+            OrderStatus.completed: [],
+            OrderStatus.cancelled: []
+        }
+        if current_status and v not in allowed_transitions[current_status]:
+            raise ValueError(f"Invalid status transition from {current_status} to {v}")
+        return v
+
+
 class RouteBase(SQLModel):
     club_id: uuid.UUID
     points: str  # JSON-строка с координатами

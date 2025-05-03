@@ -6,7 +6,8 @@ from uuid import UUID
 from app import crud
 from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser, SuperUser
 from app.crud import get_order_with_club_data, update_order_status
-from app.models import Order, OrderWithOperator, OrderResponse, OrderStatusUpdate
+from app.models import Order, OrderWithOperator, OrderResponse, OrderStatusUpdate, OrderUpdate, OrderStatus, FlightTask
+from app.scheduler import update_order_statuses
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -85,16 +86,62 @@ async def get_order(
     }
 
 
-@router.post("/status", response_model=Order)
+# @router.post("/status", response_model=Order)
+# async def update_order_status(
+#     status_update: OrderStatusUpdate,
+#     session: SessionDep,
+#     current_user: CurrentUser
+# ):
+#     order = update_order_status(
+#         session,
+#         order_id=status_update.order_id,
+#         status=status_update.status,
+#         user_id=current_user.id
+#     )
+#     return order
+
+
+@router.patch("/{order_id}", response_model=Order)
 async def update_order_status(
-    status_update: OrderStatusUpdate,
-    session: SessionDep,
-    current_user: CurrentUser
+        order_id: UUID,
+        order_in: OrderUpdate,
+        session: SessionDep,
+        current_user: CurrentUser
 ):
-    order = update_order_status(
-        session,
-        order_id=status_update.order_id,
-        status=status_update.status,
-        user_id=current_user.id
-    )
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    if not current_user.is_superuser and order.operator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to update this order")
+
+    if order_in.status:
+        # Валидация перехода статуса
+        allowed_transitions = {
+            OrderStatus.new: [OrderStatus.in_processing, OrderStatus.cancelled],
+            OrderStatus.in_processing: [OrderStatus.in_progress, OrderStatus.cancelled, OrderStatus.new],
+            OrderStatus.in_progress: [OrderStatus.completed],
+            OrderStatus.completed: [],
+            OrderStatus.cancelled: []
+        }
+        if order_in.status not in allowed_transitions[order.status]:
+            raise HTTPException(status_code=400,
+                                detail=f"Invalid status transition from {order.status} to {order_in.status}")
+
+        if order_in.status == OrderStatus.cancelled:
+            order.status = OrderStatus.cancelled
+        elif order_in.status == OrderStatus.new and order.status == OrderStatus.in_processing:
+            order.status = OrderStatus.new
+            order.operator_id = None
+            # Удаляем связанное полётное задание
+            flight_task = session.query(FlightTask).filter(FlightTask.order_id == order_id).first()
+            if flight_task:
+                session.delete(flight_task)
+        else:
+            raise HTTPException(status_code=400,
+                                detail="Only cancellation or return to new is allowed via this endpoint")
+
+    session.add(order)
+    session.commit()
+    session.refresh(order)
     return order

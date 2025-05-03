@@ -1,5 +1,5 @@
 import json
-from typing import Any, List
+from typing import Any, List, Optional
 
 from fastapi import HTTPException
 
@@ -228,32 +228,42 @@ def get_flight_task_by_id(session: Session, flight_task_id: UUID, user_id: UUID,
     }
 
 
-def get_all_flight_tasks(session: Session, user_id: UUID, is_superuser: bool) -> List[dict]:
-    statement = (
-        select(FlightTask, Order, User, Route, Drone, Club)
+def get_all_flight_tasks(
+    session: Session,
+    user_id: UUID,
+    is_superuser: bool,
+    status_filter: Optional[OrderStatus] = None
+) -> List[dict]:
+    query = (
+        session.query(FlightTask, Order, User, Route, Drone, Club)
         .join(Order, FlightTask.order_id == Order.id)
         .join(User, FlightTask.operator_id == User.id)
         .join(Route, FlightTask.route_id == Route.id)
         .join(Drone, FlightTask.drone_id == Drone.id)
         .join(Club, Order.club_id == Club.id)
     )
+
     if not is_superuser:
-        statement = statement.where(FlightTask.operator_id == user_id)
+        query = query.filter(FlightTask.operator_id == user_id)
 
-    results = session.exec(statement).all()
+    if status_filter:
+        query = query.filter(Order.status == status_filter)
 
-    flight_tasks = []
-    for flight_task, order, user, route, drone, club in results:
-        # Десериализуем points в List[RoutePoint]
-        points = [RoutePoint(**point) for point in json.loads(route.points)]
-        flight_tasks.append({
+    results = query.all()
+
+    return [
+        {
             "flight_task": flight_task,
             "order": order,
-            "operator": user,
-            "route": {"id": route.id, "club_id": route.club_id, "points": points},
+            "operator": operator,
+            "route": {
+                "id": route.id,
+                "club_id": route.club_id,
+                "points": json.loads(route.points)
+            },
             "drone": drone,
             "club": club
-        })
-
-    return flight_tasks
+        }
+        for flight_task, order, operator, route, drone, club in results
+    ]
 
