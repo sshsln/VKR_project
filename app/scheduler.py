@@ -60,4 +60,8 @@ def update_order_statuses():
 
 def start_scheduler():
     scheduler.add_job(update_order_statuses, "interval", minutes=5)
+<<<<<<< HEAD
     scheduler.start()
+=======
+    scheduler.start()
+>>>>>>> 987c99b (добавлена логика изменения статусов)

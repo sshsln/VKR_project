@@ -99,7 +99,134 @@ class Order(SQLModel, table=True):
     updated_at: Optional[datetime] = None
 
 
+<<<<<<< HEAD
 class FlightTask(SQLModel, table=True):
+=======
+class Order(OrderBase, table=True):
+    id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, primary_key=True)
+    operator_id: Optional[uuid.UUID] = Field(default=None, foreign_key="user.id")
+    creation_time: datetime
+
+
+class OrderResponse(BaseModel):
+    id: UUID
+    first_name: str
+    last_name: str
+    email: EmailStr
+    order_date: date
+    start_time: time
+    end_time: time
+    club_id: UUID
+    status: OrderStatus
+    creation_time: datetime
+    club_name: str
+    club_address: str
+
+    class Config:
+        from_attributes = True
+
+
+class OrderWithOperator(BaseModel):
+    id: UUID
+    first_name: str
+    last_name: str
+    email: EmailStr
+    order_date: date
+    start_time: time
+    end_time: time
+    club_id: UUID
+    status: OrderStatus
+    creation_time: datetime
+    club_name: str
+    club_address: str
+    operator: Optional[UserPublic]
+
+    class Config:
+        from_attributes = True
+
+
+class OrderStatusUpdate(BaseModel):
+    order_id: UUID
+    status: OrderStatus
+
+
+class OrderUpdate(BaseModel):
+    status: Optional[OrderStatus] = None
+
+    @validator("status")
+    def validate_status_transition(cls, v, values):
+        if not v:
+            return v
+        # Предполагаем, что текущий статус будет передан в эндпоинте
+        current_status = values.get("current_status", None)
+        allowed_transitions = {
+            OrderStatus.new: [OrderStatus.in_processing, OrderStatus.cancelled],
+            OrderStatus.in_processing: [OrderStatus.in_progress, OrderStatus.cancelled, OrderStatus.new],
+            OrderStatus.in_progress: [OrderStatus.completed],
+            OrderStatus.completed: [],
+            OrderStatus.cancelled: []
+        }
+        if current_status and v not in allowed_transitions[current_status]:
+            raise ValueError(f"Invalid status transition from {current_status} to {v}")
+        return v
+
+
+class RouteBase(SQLModel):
+    club_id: uuid.UUID
+    points: str  # JSON-строка с координатами
+
+
+class DroneBase(SQLModel):
+    model: str = Field(max_length=255)
+    club_id: uuid.UUID
+    battery_charge: int
+    camera_id: uuid.UUID
+    lens_id: uuid.UUID
+
+
+class CameraBase(SQLModel):
+    model: str = Field(max_length=255)
+    width_px: int
+    height_px: int
+    fps: int
+
+
+class LensBase(SQLModel):
+    model: str = Field(max_length=255)
+    min_focal_length: float
+    max_focal_length: float
+
+
+class Drone(DroneBase, table=True):
+    id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, primary_key=True)
+
+
+class Camera(CameraBase, table=True):
+    id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, primary_key=True)
+
+
+class Lens(LensBase, table=True):
+    id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, primary_key=True)
+    zoom_ratio: Optional[float] = Field(default=None)  # Генерируется в БД
+
+
+class Route(RouteBase, table=True):
+    id: Optional[uuid.UUID] = Field(default_factory=uuid.uuid4, primary_key=True)
+
+
+class RouteUpdate(BaseModel):
+    points: str
+
+
+class FlightTaskBase(SQLModel):
+    order_id: uuid.UUID
+    operator_id: uuid.UUID
+    route_id: uuid.UUID
+    drone_id: uuid.UUID
+
+
+class FlightTask(FlightTaskBase, table=True):
+>>>>>>> 987c99b (добавлена логика изменения статусов)
     __tablename__ = "flight_task"
     id: UUID = Field(default_factory=uuid.uuid4, primary_key=True)
     order_id: UUID = Field(foreign_key="order.id")

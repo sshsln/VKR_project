@@ -15,9 +15,9 @@ router = APIRouter(prefix="/flight-tasks", tags=["flight-tasks"])
 
 @router.post("/", response_model=FlightTaskResponse)
 async def create_flight_task(
-    flight_task_in: FlightTaskCreate,
-    session: SessionDep,
-    current_user: CurrentUser
+        flight_task_in: FlightTaskCreate,
+        session: SessionDep,
+        current_user: CurrentUser
 ):
     flight_task, order, operator, route, drone, camera, lens, club = crud.create_flight_task(session, flight_task_in, operator_id=current_user.id)
     return FlightTaskResponse(
@@ -162,6 +162,7 @@ async def update_flight_task(
             raise HTTPException(status_code=400, detail="Drone does not belong to the club")
         task.drone_id = task_in.drone_id
 
+<<<<<<< HEAD
     if task_in.camera_id:
         camera = session.get(Camera, task_in.camera_id)
         if not camera or camera.club_id != order.club_id:
@@ -174,6 +175,8 @@ async def update_flight_task(
             raise HTTPException(status_code=400, detail="Lens does not belong to the club")
         task.lens_id = task_in.lens_id
 
+=======
+>>>>>>> 987c99b (добавлена логика изменения статусов)
     if task_in.points:
         if len(task_in.points) < 2:
             raise HTTPException(status_code=400, detail="Route must have at least 2 points")
@@ -416,18 +419,191 @@ async def get_completed_flight_tasks(
     ]
 
 
+<<<<<<< HEAD
 @router.get("/{id}", response_model=FlightTaskResponse)
 async def get_flight_task(
     id: UUID,
     session: SessionDep,
     current_user: CurrentUser
 ):
+=======
+@router.get("/", response_model=List[FlightTaskResponse])
+async def get_flight_tasks(
+        session: SessionDep,
+        current_user: CurrentUser
+):
+    flight_tasks_data = get_all_flight_tasks(
+        session,
+        user_id=current_user.id,
+        is_superuser=current_user.is_superuser
+    )
+
+    if not flight_tasks_data:
+        return []
+
+    return [
+        {
+            "id": data["flight_task"].id,
+            "order": {
+                "id": data["order"].id,
+                "first_name": data["order"].first_name,
+                "last_name": data["order"].last_name,
+                "email": data["order"].email,
+                "order_date": data["order"].order_date,
+                "start_time": data["order"].start_time,
+                "end_time": data["order"].end_time,
+                "club_id": data["order"].club_id,
+                "status": data["order"].status,
+                "operator_id": data["order"].operator_id,
+                "creation_time": data["order"].creation_time,
+                "club_name": data["club"].name,
+                "club_address": data["club"].address
+            },
+            "operator": {
+                "id": data["operator"].id,
+                "email": data["operator"].email,
+                "username": data["operator"].username
+            },
+            "route": {
+                "id": data["route"]["id"],
+                "club_id": data["route"]["club_id"],
+                "points": data["route"]["points"]
+            },
+            "drone": {
+                "id": data["drone"].id,
+                "model": data["drone"].model,
+                "club_id": data["drone"].club_id,
+                "battery_charge": data["drone"].battery_charge
+            }
+        }
+        for data in flight_tasks_data
+    ]
+
+
+@router.get("/active", response_model=List[FlightTaskResponse])
+async def get_active_flight_tasks(
+    session: SessionDep,
+    current_user: CurrentUser
+):
+    flight_tasks_data = get_all_flight_tasks(
+        session,
+        user_id=current_user.id,
+        is_superuser=current_user.is_superuser,
+        status_filter=OrderStatus.in_processing
+    )
+
+    if not flight_tasks_data:
+        return []
+
+    return [
+        {
+            "id": data["flight_task"].id,
+            "order": {
+                "id": data["order"].id,
+                "first_name": data["order"].first_name,
+                "last_name": data["order"].last_name,
+                "email": data["order"].email,
+                "order_date": data["order"].order_date,
+                "start_time": data["order"].start_time,
+                "end_time": data["order"].end_time,
+                "club_id": data["order"].club_id,
+                "status": data["order"].status,
+                "operator_id": data["order"].operator_id,
+                "creation_time": data["order"].creation_time,
+                "club_name": data["club"].name,
+                "club_address": data["club"].address
+            },
+            "operator": {
+                "id": data["operator"].id,
+                "email": data["operator"].email,
+                "username": data["operator"].username
+            },
+            "route": {
+                "id": data["route"]["id"],
+                "club_id": data["route"]["club_id"],
+                "points": data["route"]["points"]
+            },
+            "drone": {
+                "id": data["drone"].id,
+                "model": data["drone"].model,
+                "club_id": data["drone"].club_id,
+                "battery_charge": data["drone"].battery_charge
+            }
+        }
+        for data in flight_tasks_data
+    ]
+
+@router.get("/history", response_model=List[FlightTaskResponse])
+async def get_completed_flight_tasks(
+    session: SessionDep,
+    current_user: CurrentUser
+):
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Only superusers can access flight tasks history")
+
+    flight_tasks_data = get_all_flight_tasks(
+        session,
+        user_id=None,  # No user filter for superuser
+        is_superuser=True,
+        status_filter=OrderStatus.completed
+    )
+
+    if not flight_tasks_data:
+        return []
+
+    return [
+        {
+            "id": data["flight_task"].id,
+            "order": {
+                "id": data["order"].id,
+                "first_name": data["order"].first_name,
+                "last_name": data["order"].last_name,
+                "email": data["order"].email,
+                "order_date": data["order"].order_date,
+                "start_time": data["order"].start_time,
+                "end_time": data["order"].end_time,
+                "club_id": data["order"].club_id,
+                "status": data["order"].status,
+                "operator_id": data["order"].operator_id,
+                "creation_time": data["order"].creation_time,
+                "club_name": data["club"].name,
+                "club_address": data["club"].address
+            },
+            "operator": {
+                "id": data["operator"].id,
+                "email": data["operator"].email,
+                "username": data["operator"].username
+            },
+            "route": {
+                "id": data["route"]["id"],
+                "club_id": data["route"]["club_id"],
+                "points": data["route"]["points"]
+            },
+            "drone": {
+                "id": data["drone"].id,
+                "model": data["drone"].model,
+                "club_id": data["drone"].club_id,
+                "battery_charge": data["drone"].battery_charge
+            }
+        }
+        for data in flight_tasks_data
+    ]
+
+
+@router.get("/{id}", response_model=FlightTaskResponse)
+async def get_flight_task(
+        id: UUID,
+        session: SessionDep,
+        current_user: CurrentUser
+):
+>>>>>>> 987c99b (добавлена логика изменения статусов)
     data = get_flight_task_by_id(
         session,
         flight_task_id=id,
         user_id=current_user.id,
         is_superuser=current_user.is_superuser
     )
+<<<<<<< HEAD
     return FlightTaskResponse(
         id=data["flight_task"].id,
         order=OrderResponse(
@@ -477,3 +653,40 @@ async def get_flight_task(
             club_id=data["lens"].club_id
         )
     )
+=======
+
+    return {
+        "id": data["flight_task"].id,
+        "order": {
+            "id": data["order"].id,
+            "first_name": data["order"].first_name,
+            "last_name": data["order"].last_name,
+            "email": data["order"].email,
+            "order_date": data["order"].order_date,
+            "start_time": data["order"].start_time,
+            "end_time": data["order"].end_time,
+            "club_id": data["order"].club_id,
+            "status": data["order"].status,
+            "operator_id": data["order"].operator_id,
+            "creation_time": data["order"].creation_time,
+            "club_name": data["club"].name,
+            "club_address": data["club"].address
+        },
+        "operator": {
+            "id": data["operator"].id,
+            "email": data["operator"].email,
+            "username": data["operator"].username
+        },
+        "route": {
+            "id": data["route"]["id"],
+            "club_id": data["route"]["club_id"],
+            "points": data["route"]["points"]
+        },
+        "drone": {
+            "id": data["drone"].id,
+            "model": data["drone"].model,
+            "club_id": data["drone"].club_id,
+            "battery_charge": data["drone"].battery_charge
+        }
+    }
+>>>>>>> 987c99b (добавлена логика изменения статусов)
