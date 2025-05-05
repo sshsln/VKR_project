@@ -114,13 +114,47 @@ async def update_flight_task(
 
 
 @router.delete("/{flight_task_id}")
-async def delete_flight_task(flight_task_id: UUID, session: SessionDep, current_user: CurrentUser):
+async def delete_flight_task(
+        flight_task_id: UUID,
+        session: SessionDep,
+        current_user: CurrentUser
+):
+    # Получаем полётное задание
     task = session.get(FlightTask, flight_task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Flight task not found")
+
+    # Проверяем права доступа
+    if not current_user.is_superuser and task.operator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to delete this flight task")
+
+    # Получаем связанный заказ
+    order = session.get(Order, task.order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Associated order not found")
+
+    # Проверяем статус заказа
+    if order.status != OrderStatus.in_processing:
+        raise HTTPException(status_code=400, detail="Flight task can only be deleted when order is in_processing")
+
+    # Получаем связанный маршрут
+    route = session.get(Route, task.route_id)
+    if not route:
+        raise HTTPException(status_code=404, detail="Associated route not found")
+
+    # Удаляем маршрут
+    session.delete(route)
+
+    # Обновляем статус заказа на cancelled
+    order.status = OrderStatus.cancelled
+    # order.operator_id = None  # Сбрасываем оператора
+    session.add(order)
+
+    # Удаляем полётное задание
     session.delete(task)
+
     session.commit()
-    return {"message": "Flight task deleted"}
+    return {"message": "Flight task and associated route deleted successfully"}
 
 
 @router.get("/", response_model=List[FlightTaskResponse])
