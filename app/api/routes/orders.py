@@ -4,16 +4,10 @@ from uuid import UUID
 
 from app import crud
 from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser, SuperUser
-<<<<<<< HEAD
 from app.crud import get_order_with_club_data
 from app.models import Order, FlightTask, Club
 from app.schemas import OrderWithOperator, OrderResponse, OrderUpdate, OrderStatus, OrderCreate, Message, \
     OrderStatusUpdate
-=======
-from app.crud import get_order_with_club_data, update_order_status
-from app.models import Order, OrderWithOperator, OrderResponse, OrderStatusUpdate, OrderUpdate, OrderStatus, FlightTask
-from app.scheduler import update_order_statuses
->>>>>>> 987c99b (добавлена логика изменения статусов)
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 
@@ -93,32 +87,10 @@ async def get_order(
     }
 
 
-<<<<<<< HEAD
 @router.patch("/{order_id}", response_model=Order)
 async def update_order_status(
         order_id: UUID,
         order_in: OrderStatusUpdate,
-=======
-# @router.post("/status", response_model=Order)
-# async def update_order_status(
-#     status_update: OrderStatusUpdate,
-#     session: SessionDep,
-#     current_user: CurrentUser
-# ):
-#     order = update_order_status(
-#         session,
-#         order_id=status_update.order_id,
-#         status=status_update.status,
-#         user_id=current_user.id
-#     )
-#     return order
-
-
-@router.patch("/{order_id}", response_model=Order)
-async def update_order_status(
-        order_id: UUID,
-        order_in: OrderUpdate,
->>>>>>> 987c99b (добавлена логика изменения статусов)
         session: SessionDep,
         current_user: CurrentUser
 ):

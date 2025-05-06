@@ -1,9 +1,5 @@
 import json
-<<<<<<< HEAD
 from typing import Any, List, Tuple
-=======
-from typing import Any, List, Optional
->>>>>>> 987c99b (добавлена логика изменения статусов)
 
 from fastapi import HTTPException
 
@@ -289,7 +285,6 @@ def create_flight_task(session: Session, flight_task_in: FlightTaskCreate, opera
 
 
 def get_all_flight_tasks(
-<<<<<<< HEAD
         session: Session,
         user_id: UUID | None,
         is_superuser: bool,
@@ -297,15 +292,6 @@ def get_all_flight_tasks(
 ) -> List[dict]:
     statement = (
         select(FlightTask, Order, User, Route, Drone, Camera, Lens, Club)
-=======
-    session: Session,
-    user_id: UUID,
-    is_superuser: bool,
-    status_filter: Optional[OrderStatus] = None
-) -> List[dict]:
-    query = (
-        session.query(FlightTask, Order, User, Route, Drone, Club)
->>>>>>> 987c99b (добавлена логика изменения статусов)
         .join(Order, FlightTask.order_id == Order.id)
         .join(User, FlightTask.operator_id == User.id)
         .join(Route, FlightTask.route_id == Route.id)
@@ -314,9 +300,7 @@ def get_all_flight_tasks(
         .join(Lens, FlightTask.lens_id == Lens.id)
         .join(Club, Order.club_id == Club.id)
     )
-
     if not is_superuser:
-<<<<<<< HEAD
         statement = statement.where(FlightTask.operator_id == user_id)
     if status_filter:
         statement = statement.where(Order.status == status_filter)
@@ -325,42 +309,21 @@ def get_all_flight_tasks(
     return [
         {
             "flight_task": task,
-=======
-        query = query.filter(FlightTask.operator_id == user_id)
-
-    if status_filter:
-        query = query.filter(Order.status == status_filter)
-
-    results = query.all()
-
-    return [
-        {
-            "flight_task": flight_task,
->>>>>>> 987c99b (добавлена логика изменения статусов)
             "order": order,
             "operator": operator,
             "route": {
                 "id": route.id,
                 "club_id": route.club_id,
-<<<<<<< HEAD
                 "points": [RoutePoint(**point) for point in json.loads(route.points)]
-=======
-                "points": json.loads(route.points)
->>>>>>> 987c99b (добавлена логика изменения статусов)
             },
             "drone": drone,
             "camera": camera,
             "lens": lens,
             "club": club
         }
-<<<<<<< HEAD
         for task, order, operator, route, drone, camera, lens, club in results
     ]
 
-=======
-        for flight_task, order, operator, route, drone, club in results
-    ]
->>>>>>> 987c99b (добавлена логика изменения статусов)
 
 def get_flight_task_by_id(
         session: Session,
