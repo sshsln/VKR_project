@@ -7,8 +7,9 @@ from sqlmodel import Session, select
 from uuid import UUID
 
 from app.core.security import get_password_hash, verify_password
-from app.models import User, UserCreate, UserUpdate, Order, OrderStatus, OrderWithOperator, UserPublic, OrderResponse, \
-    Club, Drone, Camera, Lens, FlightTask, Route, RoutePoint
+from app.models import User, Order, Club, Drone, Camera, Lens, FlightTask, Route
+from app.schemas import UserCreate, UserUpdate, OrderStatus, OrderWithOperator, UserPublic, OrderResponse, RoutePoint, \
+    ClubBase
 
 
 def create_user(*, session: Session, user_create: UserCreate) -> User:
@@ -158,9 +159,79 @@ def get_drones_by_club(session: Session, club_id: UUID) -> List[dict]:
     return drones_data
 
 
-def get_all_clubs(session: Session) -> List[Club]:
+def get_all_clubs(session: Session, include_archived: bool = False) -> List[Club]:
     statement = select(Club)
+    if not include_archived:
+        statement = statement.where(Club.is_available == True)
     return session.exec(statement).all()
+
+
+def get_club_by_id(session: Session, club_id: UUID) -> Club | None:
+    return session.get(Club, club_id)
+
+
+def create_club(session: Session, club_in: ClubBase) -> Club:
+    club = Club(
+        name=club_in.name,
+        address=club_in.address,
+        latitude=club_in.latitude,
+        longitude=club_in.longitude,
+        is_available=True
+    )
+    session.add(club)
+    session.commit()
+    session.refresh(club)
+    return club
+
+
+def update_club(session: Session, club_id: UUID, club_in: ClubBase) -> Club:
+    club = session.get(Club, club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    club.name = club_in.name
+    club.address = club_in.address
+    club.latitude = club_in.latitude
+    club.longitude = club_in.longitude
+
+    session.add(club)
+    session.commit()
+    session.refresh(club)
+    return club
+
+
+def archive_club(session: Session, club_id: UUID) -> None:
+    club = session.get(Club, club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+    if not club.is_available:
+        raise HTTPException(status_code=400, detail="Club is already archived")
+
+    club.is_available = False
+    session.add(club)
+    session.commit()
+
+
+def delete_club(session: Session, club_id: UUID) -> None:
+    club = session.get(Club, club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    # Проверка связанных данных
+    related_orders = session.query(Order).filter(Order.club_id == club_id).count()
+    related_drones = session.query(Drone).filter(Drone.club_id == club_id).count()
+    related_cameras = session.query(Camera).filter(Camera.club_id == club_id).count()
+    related_lenses = session.query(Lens).filter(Lens.club_id == club_id).count()
+    related_routes = session.query(Route).filter(Route.club_id == club_id).count()
+
+    if any([related_orders, related_drones, related_cameras, related_lenses, related_routes]):
+        raise HTTPException(
+            status_code=400,
+            detail="Cannot delete club with associated orders, drones, cameras, lenses, or routes"
+        )
+
+    session.delete(club)
+    session.commit()
 
 
 def update_order_status(session: Session, order_id: UUID, status: OrderStatus, user_id: UUID) -> Order:

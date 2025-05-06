@@ -6,7 +6,9 @@ from uuid import UUID
 from app import crud
 from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser, SuperUser
 from app.crud import get_order_with_club_data, update_order_status
-from app.models import Order, OrderWithOperator, OrderResponse, OrderStatusUpdate, OrderUpdate, OrderStatus, FlightTask
+from app.models import Order, FlightTask, Club
+from app.schemas import OrderWithOperator, OrderResponse, OrderStatusUpdate, OrderUpdate, OrderStatus, OrderBase, \
+    OrderCreate
 from app.scheduler import update_order_statuses
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -30,11 +32,6 @@ def get_assigned_orders(
     skip: int = 0,
     limit: int = 100
 ):
-    # if current_user.is_superuser:
-    #     raise HTTPException(
-    #         status_code=403,
-    #         detail="Administrators cannot view assigned orders"
-    #     )
     orders = crud.get_assigned_orders(
         session=session, operator_id=current_user.id, skip=skip, limit=limit
     )
@@ -50,6 +47,13 @@ def get_all_orders(
 ):
     orders = crud.get_all_orders_with_operators(session=session, skip=skip, limit=limit)
     return orders
+
+
+@router.get("/statuses", response_model=List[str])
+async def get_order_statuses(
+    current_user: CurrentUser
+):
+    return [status.value for status in OrderStatus]
 
 
 @router.get("/{order_id}")
@@ -75,7 +79,6 @@ async def get_order(
         "order_date": order.order_date,
         "start_time": order.start_time,
         "end_time": order.end_time,
-        "creation_time": order.creation_time,
         "club": {
             "id": club.id,
             "name": club.name,
@@ -84,21 +87,6 @@ async def get_order(
             "address": club.address
         }
     }
-
-
-# @router.post("/status", response_model=Order)
-# async def update_order_status(
-#     status_update: OrderStatusUpdate,
-#     session: SessionDep,
-#     current_user: CurrentUser
-# ):
-#     order = update_order_status(
-#         session,
-#         order_id=status_update.order_id,
-#         status=status_update.status,
-#         user_id=current_user.id
-#     )
-#     return order
 
 
 @router.patch("/{order_id}", response_model=Order)
@@ -145,3 +133,117 @@ async def update_order_status(
     session.commit()
     session.refresh(order)
     return order
+
+
+@router.post("", response_model=OrderResponse, dependencies=[Depends(get_current_active_superuser)])
+async def create_order(
+    order_in: OrderCreate,
+    session: SessionDep
+):
+    # Проверка существования клуба
+    club = session.get(Club, order_in.club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    # Создание заказа
+    order = Order(
+        first_name=order_in.first_name,
+        last_name=order_in.last_name,
+        email=order_in.email,
+        order_date=order_in.order_date,
+        start_time=order_in.start_time,
+        end_time=order_in.end_time,
+        club_id=order_in.club_id,
+        status=OrderStatus.new,
+    )
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+
+    return OrderResponse(
+        id=order.id,
+        first_name=order.first_name,
+        last_name=order.last_name,
+        email=order.email,
+        order_date=order.order_date,
+        start_time=order.start_time,
+        end_time=order.end_time,
+        club_id=order.club_id,
+        status=order.status,
+        club_name=club.name,
+        club_address=club.address
+    )
+
+
+@router.patch("/admin/{order_id}", response_model=OrderResponse, dependencies=[Depends(get_current_active_superuser)])
+async def admin_update_order(
+    order_id: UUID,
+    order_in: OrderBase,
+    session: SessionDep
+):
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Проверка существования клуба
+    club = session.get(Club, order_in.club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+
+    # Валидация перехода статуса
+    if order_in.status != order.status:
+        allowed_transitions = {
+            OrderStatus.new: [OrderStatus.in_processing, OrderStatus.cancelled],
+            OrderStatus.in_processing: [OrderStatus.in_progress, OrderStatus.cancelled, OrderStatus.new],
+            OrderStatus.in_progress: [OrderStatus.completed],
+            OrderStatus.completed: [],
+            OrderStatus.cancelled: []
+        }
+        if order_in.status not in allowed_transitions[order.status]:
+            raise HTTPException(status_code=400,
+                                detail=f"Invalid status transition from {order.status} to {order_in.status}")
+
+    # Обновление всех полей
+    order.first_name = order_in.first_name
+    order.last_name = order_in.last_name
+    order.email = order_in.email
+    order.order_date = order_in.order_date
+    order.start_time = order_in.start_time
+    order.end_time = order_in.end_time
+    order.club_id = order_in.club_id
+    order.status = order_in.status
+
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+
+    return OrderResponse(
+        id=order.id,
+        first_name=order.first_name,
+        last_name=order.last_name,
+        email=order.email,
+        order_date=order.order_date,
+        start_time=order.start_time,
+        end_time=order.end_time,
+        club_id=order.club_id,
+        status=order.status,
+        club_name=club.name,
+        club_address=club.address
+    )
+
+
+@router.delete("/{order_id}", response_model=None, dependencies=[Depends(get_current_active_superuser)])
+async def delete_order(
+    order_id: UUID,
+    session: SessionDep
+):
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Удаление связанных полётных заданий
+    session.query(FlightTask).filter(FlightTask.order_id == order_id).delete()
+    session.delete(order)
+    session.commit()
+
+    return None

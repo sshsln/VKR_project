@@ -4,8 +4,8 @@ from pydantic import BaseModel, validator
 from uuid import UUID
 from typing import List
 from app.api.deps import SessionDep, CurrentUser
-from app.models import Order, Route, FlightTask, Drone, OrderStatus, FlightTaskResponse, RoutePoint, RoutePointsData, \
-    FlightTaskCreate, FlightTaskUpdate
+from app.models import Order, Route, FlightTask, Drone, OrderStatus
+from app.schemas import FlightTaskResponse, RoutePoint, RoutePointsData, FlightTaskCreate, FlightTaskUpdate
 from app.crud import get_flight_task_by_id, create_route, get_all_flight_tasks
 import json
 
@@ -185,7 +185,6 @@ async def get_flight_tasks(
                 "club_id": data["order"].club_id,
                 "status": data["order"].status,
                 "operator_id": data["order"].operator_id,
-                "creation_time": data["order"].creation_time,
                 "club_name": data["club"].name,
                 "club_address": data["club"].address
             },
@@ -239,7 +238,6 @@ async def get_active_flight_tasks(
                 "club_id": data["order"].club_id,
                 "status": data["order"].status,
                 "operator_id": data["order"].operator_id,
-                "creation_time": data["order"].creation_time,
                 "club_name": data["club"].name,
                 "club_address": data["club"].address
             },
@@ -295,7 +293,6 @@ async def get_completed_flight_tasks(
                 "club_id": data["order"].club_id,
                 "status": data["order"].status,
                 "operator_id": data["order"].operator_id,
-                "creation_time": data["order"].creation_time,
                 "club_name": data["club"].name,
                 "club_address": data["club"].address
             },
@@ -346,7 +343,6 @@ async def get_flight_task(
             "club_id": data["order"].club_id,
             "status": data["order"].status,
             "operator_id": data["order"].operator_id,
-            "creation_time": data["order"].creation_time,
             "club_name": data["club"].name,
             "club_address": data["club"].address
         },
