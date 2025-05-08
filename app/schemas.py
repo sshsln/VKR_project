@@ -94,6 +94,13 @@ class ClubBase(SQLModel):
     longitude: float
 
 
+class ClubUpdate(SQLModel):
+    name: Optional[str] = Field(default=None, max_length=255)
+    address: Optional[str] = Field(default=None, max_length=255)
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+
+
 class ClubResponse(ClubBase):
     id: UUID
 
@@ -213,6 +220,14 @@ class CameraBase(SQLModel):
     club_id: UUID
 
 
+class CameraUpdate(SQLModel):
+    model: Optional[str] = Field(default=None, max_length=255)
+    width_px: Optional[int] = None
+    height_px: Optional[int] = None
+    fps: Optional[int] = None
+    club_id: Optional[UUID] = None
+
+
 class CameraResponse(CameraBase):
     id: UUID
 
@@ -231,6 +246,13 @@ class LensBase(SQLModel):
     club_id: UUID
 
 
+class LensUpdate(SQLModel):
+    model: Optional[str] = Field(default=None, max_length=255)
+    min_focal_length: Optional[float] = None
+    max_focal_length: Optional[float] = None
+    club_id: Optional[UUID] = None
+
+
 class LensResponse(LensBase):
     id: UUID
 
@@ -245,8 +267,12 @@ class DroneBase(SQLModel):
     model: str = Field(max_length=255)
     club_id: UUID
     battery_charge: int
-    camera_id: UUID
-    lens_id: UUID
+
+
+class DroneUpdate(SQLModel):
+    model: Optional[str] = Field(default=None, max_length=255)
+    club_id: Optional[UUID] = None
+    battery_charge: Optional[int] = None
 
 
 class DroneResponse(DroneBase):
@@ -264,16 +290,22 @@ class FlightTaskBase(SQLModel):
     operator_id: UUID
     route_id: UUID
     drone_id: UUID
+    camera_id: UUID
+    lens_id: UUID
 
 
 class FlightTaskCreate(BaseModel):
     order_id: UUID
     drone_id: UUID
+    camera_id: UUID
+    lens_id: UUID
     points: List[RoutePoint]
 
 
 class FlightTaskUpdate(BaseModel):
     drone_id: Optional[UUID] = None
+    camera_id: Optional[UUID] = None
+    lens_id: Optional[UUID] = None
     points: Optional[List[RoutePoint]] = None
 
 

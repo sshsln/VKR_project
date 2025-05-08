@@ -69,8 +69,6 @@ class Drone(SQLModel, table=True):
     model: str = Field(max_length=255)
     club_id: UUID = Field(foreign_key="club.id")
     battery_charge: int
-    camera_id: UUID = Field(foreign_key="camera.id")
-    lens_id: UUID = Field(foreign_key="lens.id")
     is_available: bool = Field(default=True)
     created_at: datetime = Field(default_factory=moscow_now)
     updated_at: Optional[datetime] = None
@@ -106,5 +104,7 @@ class FlightTask(SQLModel, table=True):
     operator_id: UUID = Field(foreign_key="user.id")
     route_id: UUID = Field(foreign_key="route.id")
     drone_id: UUID = Field(foreign_key="drone.id")
+    camera_id: UUID = Field(foreign_key="camera.id")
+    lens_id: UUID = Field(foreign_key="lens.id")
     created_at: datetime = Field(default_factory=moscow_now)
     updated_at: Optional[datetime] = None

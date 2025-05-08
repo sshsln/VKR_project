@@ -1,77 +1,145 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
-from pydantic import BaseModel, validator
 from uuid import UUID
 from typing import List
-from app.api.deps import SessionDep, CurrentUser
-from app.models import Order, Route, FlightTask, Drone, OrderStatus
-from app.schemas import FlightTaskResponse, RoutePoint, RoutePointsData, FlightTaskCreate, FlightTaskUpdate
-from app.crud import get_flight_task_by_id, create_route, get_all_flight_tasks
+
+from app import crud
+from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser
+from app.models import Order, Route, FlightTask, Drone, OrderStatus, Camera, Lens, User, Club
+from app.schemas import FlightTaskResponse, RoutePoint, RoutePointsData, FlightTaskCreate, FlightTaskUpdate, \
+    OrderResponse, UserPublic, RouteResponse, DroneResponse, CameraResponse, LensResponse, Message
+from app.crud import get_flight_task_by_id, get_all_flight_tasks
 import json
 
 router = APIRouter(prefix="/flight-tasks", tags=["flight-tasks"])
 
 
-@router.post("/", response_model=FlightTask)
+@router.post("/", response_model=FlightTaskResponse)
 async def create_flight_task(
-        flight_task_in: FlightTaskCreate,
-        session: SessionDep,
-        current_user: CurrentUser
+    flight_task_in: FlightTaskCreate,
+    session: SessionDep,
+    current_user: CurrentUser
 ):
-    order = session.get(Order, flight_task_in.order_id)
-    if not order or order.status != OrderStatus.new or order.operator_id is not None:
-        raise HTTPException(status_code=400, detail="Order is not available")
-
-    drone = session.get(Drone, flight_task_in.drone_id)
-    if not drone or drone.club_id != order.club_id:
-        raise HTTPException(status_code=400, detail="Drone does not belong to the club")
-
-    points_list = flight_task_in.points
-    if len(points_list) < 2:
-        raise HTTPException(status_code=400, detail="Route must have at least 2 points")
-    if points_list[0].latitude != points_list[-1].latitude or points_list[0].longitude != points_list[-1].longitude:
-        raise HTTPException(status_code=400, detail="First and last points must be the same")
-
-    route = create_route(session, club_id=order.club_id, points=points_list)
-
-    flight_task = FlightTask(
-        order_id=flight_task_in.order_id,
-        operator_id=current_user.id,
-        route_id=route.id,
-        drone_id=flight_task_in.drone_id
+    flight_task, order, operator, route, drone, camera, lens, club = crud.create_flight_task(session, flight_task_in, operator_id=current_user.id)
+    return FlightTaskResponse(
+        id=flight_task.id,
+        order=OrderResponse(
+            id=order.id,
+            club_id=order.club_id,
+            status=order.status,
+            operator_id=order.operator_id,
+            first_name=order.first_name,
+            last_name=order.last_name,
+            email=order.email,
+            order_date=order.order_date,
+            start_time=order.start_time,
+            end_time=order.end_time,
+            club_name=club.name,
+            club_address=club.address
+        ),
+        operator=UserPublic(
+            id=operator.id,
+            username=operator.username,
+            email=operator.email
+        ),
+        route=RouteResponse(
+            id=route.id,
+            club_id=route.club_id,
+            points=[RoutePoint(**point) for point in json.loads(route.points)]
+        ),
+        drone=DroneResponse(
+            id=drone.id,
+            model=drone.model,
+            club_id=drone.club_id,
+            battery_charge=drone.battery_charge
+        ),
+        camera=CameraResponse(
+            id=camera.id,
+            model=camera.model,
+            width_px=camera.width_px,
+            height_px=camera.height_px,
+            fps=camera.fps,
+            club_id=camera.club_id
+        ),
+        lens=LensResponse(
+            id=lens.id,
+            model=lens.model,
+            min_focal_length=lens.min_focal_length,
+            max_focal_length=lens.max_focal_length,
+            zoom_ratio=lens.zoom_ratio,
+            club_id=lens.club_id
+        )
     )
-    session.add(flight_task)
-
-    order.status = OrderStatus.in_processing
-    order.operator_id = current_user.id
-    session.add(order)
-
-    session.commit()
-    session.refresh(flight_task)
-    return flight_task
 
 
-router.get("/")
-async def get_flight_tasks(session: SessionDep, current_user: CurrentUser):
-    tasks = session.query(FlightTask).all()
+@router.get("/", response_model=List[FlightTaskResponse])
+async def get_flight_tasks(
+    session: SessionDep,
+    current_user: CurrentUser
+):
+    flight_tasks_data = get_all_flight_tasks(
+        session,
+        user_id=current_user.id,
+        is_superuser=current_user.is_superuser
+    )
     return [
-        {
-            "id": task.id,
-            "order_id": task.order_id,
-            "operator_id": task.operator_id,
-            "route_id": task.route_id,
-            "drone_id": task.drone_id
-        }
-        for task in tasks
+        FlightTaskResponse(
+            id=data["flight_task"].id,
+            order=OrderResponse(
+                id=data["order"].id,
+                first_name=data["order"].first_name,
+                last_name=data["order"].last_name,
+                email=data["order"].email,
+                order_date=data["order"].order_date,
+                start_time=data["order"].start_time,
+                end_time=data["order"].end_time,
+                club_id=data["order"].club_id,
+                status=data["order"].status,
+                club_name=data["club"].name,
+                club_address=data["club"].address
+            ),
+            operator=UserPublic(
+                id=data["operator"].id,
+                email=data["operator"].email,
+                username=data["operator"].username,
+                is_superuser=data["operator"].is_superuser
+            ),
+            route=RouteResponse(
+                id=data["route"]["id"],
+                club_id=data["route"]["club_id"],
+                points=data["route"]["points"]
+            ),
+            drone=DroneResponse(
+                id=data["drone"].id,
+                model=data["drone"].model,
+                club_id=data["drone"].club_id,
+                battery_charge=data["drone"].battery_charge
+            ),
+            camera=CameraResponse(
+                id=data["camera"].id,
+                model=data["camera"].model,
+                width_px=data["camera"].width_px,
+                height_px=data["camera"].height_px,
+                fps=data["camera"].fps,
+                club_id=data["camera"].club_id
+            ),
+            lens=LensResponse(
+                id=data["lens"].id,
+                model=data["lens"].model,
+                min_focal_length=data["lens"].min_focal_length,
+                max_focal_length=data["lens"].max_focal_length,
+                zoom_ratio=data["lens"].zoom_ratio,
+                club_id=data["lens"].club_id
+            )
+        )
+        for data in flight_tasks_data
     ]
 
-
-@router.patch("/{flight_task_id}", response_model=FlightTask)
+@router.patch("/{flight_task_id}", response_model=FlightTaskResponse)
 async def update_flight_task(
-        flight_task_id: UUID,
-        task_in: FlightTaskUpdate,
-        session: SessionDep,
-        current_user: CurrentUser
+    flight_task_id: UUID,
+    task_in: FlightTaskUpdate,
+    session: SessionDep,
+    current_user: CurrentUser
 ):
     task = session.get(FlightTask, flight_task_id)
     if not task:
@@ -93,11 +161,22 @@ async def update_flight_task(
             raise HTTPException(status_code=400, detail="Drone does not belong to the club")
         task.drone_id = task_in.drone_id
 
+    if task_in.camera_id:
+        camera = session.get(Camera, task_in.camera_id)
+        if not camera or camera.club_id != order.club_id:
+            raise HTTPException(status_code=400, detail="Camera does not belong to the club")
+        task.camera_id = task_in.camera_id
+
+    if task_in.lens_id:
+        lens = session.get(Lens, task_in.lens_id)
+        if not lens or lens.club_id != order.club_id:
+            raise HTTPException(status_code=400, detail="Lens does not belong to the club")
+        task.lens_id = task_in.lens_id
+
     if task_in.points:
         if len(task_in.points) < 2:
             raise HTTPException(status_code=400, detail="Route must have at least 2 points")
-        if task_in.points[0].latitude != task_in.points[-1].latitude or task_in.points[0].longitude != task_in.points[
-            -1].longitude:
+        if task_in.points[0].latitude != task_in.points[-1].latitude or task_in.points[0].longitude != task_in.points[-1].longitude:
             raise HTTPException(status_code=400, detail="First and last points must be the same")
 
         route = session.get(Route, task.route_id)
@@ -110,104 +189,96 @@ async def update_flight_task(
     session.add(task)
     session.commit()
     session.refresh(task)
-    return task
 
+    order = session.get(Order, task.order_id)
+    operator = session.get(User, task.operator_id)
+    route = session.get(Route, task.route_id)
+    drone = session.get(Drone, task.drone_id)
+    camera = session.get(Camera, task.camera_id)
+    lens = session.get(Lens, task.lens_id)
+    club = session.get(Club, order.club_id)
 
-@router.delete("/{flight_task_id}")
+    return FlightTaskResponse(
+        id=task.id,
+        order=OrderResponse(
+            id=order.id,
+            first_name=order.first_name,
+            last_name=order.last_name,
+            email=order.email,
+            order_date=order.order_date,
+            start_time=order.start_time,
+            end_time=order.end_time,
+            club_id=order.club_id,
+            status=order.status,
+            club_name=club.name,
+            club_address=club.address
+        ),
+        operator=UserPublic(
+            id=operator.id,
+            email=operator.email,
+            username=operator.username,
+            is_superuser=operator.is_superuser
+        ),
+        route=RouteResponse(
+            id=route.id,
+            club_id=route.club_id,
+            points=[RoutePoint(**point) for point in json.loads(route.points)]
+        ),
+        drone=DroneResponse(
+            id=drone.id,
+            model=drone.model,
+            club_id=drone.club_id,
+            battery_charge=drone.battery_charge
+        ),
+        camera=CameraResponse(
+            id=camera.id,
+            model=camera.model,
+            width_px=camera.width_px,
+            height_px=camera.height_px,
+            fps=camera.fps,
+            club_id=camera.club_id
+        ),
+        lens=LensResponse(
+            id=lens.id,
+            model=lens.model,
+            min_focal_length=lens.min_focal_length,
+            max_focal_length=lens.max_focal_length,
+            zoom_ratio=lens.zoom_ratio,
+            club_id=lens.club_id
+        )
+    )
+
+@router.delete("/{flight_task_id}", response_model=Message, dependencies=[Depends(get_current_active_superuser)])
 async def delete_flight_task(
-        flight_task_id: UUID,
-        session: SessionDep,
-        current_user: CurrentUser
+    flight_task_id: UUID,
+    session: SessionDep,
+    current_user: CurrentUser
 ):
-    # Получаем полётное задание
     task = session.get(FlightTask, flight_task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Flight task not found")
 
-    # Проверяем права доступа
     if not current_user.is_superuser and task.operator_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to delete this flight task")
 
-    # Получаем связанный заказ
     order = session.get(Order, task.order_id)
     if not order:
         raise HTTPException(status_code=404, detail="Associated order not found")
 
-    # Проверяем статус заказа
     if order.status != OrderStatus.in_processing:
         raise HTTPException(status_code=400, detail="Flight task can only be deleted when order is in_processing")
 
-    # Получаем связанный маршрут
     route = session.get(Route, task.route_id)
     if not route:
         raise HTTPException(status_code=404, detail="Associated route not found")
 
-    # Удаляем маршрут
     session.delete(route)
-
-    # Обновляем статус заказа на cancelled
     order.status = OrderStatus.cancelled
-    # order.operator_id = None  # Сбрасываем оператора
     session.add(order)
-
-    # Удаляем полётное задание
     session.delete(task)
 
     session.commit()
-    return {"message": "Flight task and associated route deleted successfully"}
-
-
-@router.get("/", response_model=List[FlightTaskResponse])
-async def get_flight_tasks(
-        session: SessionDep,
-        current_user: CurrentUser
-):
-    flight_tasks_data = get_all_flight_tasks(
-        session,
-        user_id=current_user.id,
-        is_superuser=current_user.is_superuser
-    )
-
-    if not flight_tasks_data:
-        return []
-
-    return [
-        {
-            "id": data["flight_task"].id,
-            "order": {
-                "id": data["order"].id,
-                "first_name": data["order"].first_name,
-                "last_name": data["order"].last_name,
-                "email": data["order"].email,
-                "order_date": data["order"].order_date,
-                "start_time": data["order"].start_time,
-                "end_time": data["order"].end_time,
-                "club_id": data["order"].club_id,
-                "status": data["order"].status,
-                "operator_id": data["order"].operator_id,
-                "club_name": data["club"].name,
-                "club_address": data["club"].address
-            },
-            "operator": {
-                "id": data["operator"].id,
-                "email": data["operator"].email,
-                "username": data["operator"].username
-            },
-            "route": {
-                "id": data["route"]["id"],
-                "club_id": data["route"]["club_id"],
-                "points": data["route"]["points"]
-            },
-            "drone": {
-                "id": data["drone"].id,
-                "model": data["drone"].model,
-                "club_id": data["drone"].club_id,
-                "battery_charge": data["drone"].battery_charge
-            }
-        }
-        for data in flight_tasks_data
-    ]
-
+    return Message(message="Flight task and associated route deleted successfully")
 
 @router.get("/active", response_model=List[FlightTaskResponse])
 async def get_active_flight_tasks(
@@ -220,44 +291,56 @@ async def get_active_flight_tasks(
         is_superuser=current_user.is_superuser,
         status_filter=OrderStatus.in_processing
     )
-
-    if not flight_tasks_data:
-        return []
-
     return [
-        {
-            "id": data["flight_task"].id,
-            "order": {
-                "id": data["order"].id,
-                "first_name": data["order"].first_name,
-                "last_name": data["order"].last_name,
-                "email": data["order"].email,
-                "order_date": data["order"].order_date,
-                "start_time": data["order"].start_time,
-                "end_time": data["order"].end_time,
-                "club_id": data["order"].club_id,
-                "status": data["order"].status,
-                "operator_id": data["order"].operator_id,
-                "club_name": data["club"].name,
-                "club_address": data["club"].address
-            },
-            "operator": {
-                "id": data["operator"].id,
-                "email": data["operator"].email,
-                "username": data["operator"].username
-            },
-            "route": {
-                "id": data["route"]["id"],
-                "club_id": data["route"]["club_id"],
-                "points": data["route"]["points"]
-            },
-            "drone": {
-                "id": data["drone"].id,
-                "model": data["drone"].model,
-                "club_id": data["drone"].club_id,
-                "battery_charge": data["drone"].battery_charge
-            }
-        }
+        FlightTaskResponse(
+            id=data["flight_task"].id,
+            order=OrderResponse(
+                id=data["order"].id,
+                first_name=data["order"].first_name,
+                last_name=data["order"].last_name,
+                email=data["order"].email,
+                order_date=data["order"].order_date,
+                start_time=data["order"].start_time,
+                end_time=data["order"].end_time,
+                club_id=data["order"].club_id,
+                status=data["order"].status,
+                club_name=data["club"].name,
+                club_address=data["club"].address
+            ),
+            operator=UserPublic(
+                id=data["operator"].id,
+                email=data["operator"].email,
+                username=data["operator"].username,
+                is_superuser=data["operator"].is_superuser
+            ),
+            route=RouteResponse(
+                id=data["route"]["id"],
+                club_id=data["route"]["club_id"],
+                points=data["route"]["points"]
+            ),
+            drone=DroneResponse(
+                id=data["drone"].id,
+                model=data["drone"].model,
+                club_id=data["drone"].club_id,
+                battery_charge=data["drone"].battery_charge
+            ),
+            camera=CameraResponse(
+                id=data["camera"].id,
+                model=data["camera"].model,
+                width_px=data["camera"].width_px,
+                height_px=data["camera"].height_px,
+                fps=data["camera"].fps,
+                club_id=data["camera"].club_id
+            ),
+            lens=LensResponse(
+                id=data["lens"].id,
+                model=data["lens"].model,
+                min_focal_length=data["lens"].min_focal_length,
+                max_focal_length=data["lens"].max_focal_length,
+                zoom_ratio=data["lens"].zoom_ratio,
+                club_id=data["lens"].club_id
+            )
+        )
         for data in flight_tasks_data
     ]
 
@@ -271,57 +354,68 @@ async def get_completed_flight_tasks(
 
     flight_tasks_data = get_all_flight_tasks(
         session,
-        user_id=None,  # No user filter for superuser
+        user_id=None,
         is_superuser=True,
         status_filter=OrderStatus.completed
     )
-
-    if not flight_tasks_data:
-        return []
-
     return [
-        {
-            "id": data["flight_task"].id,
-            "order": {
-                "id": data["order"].id,
-                "first_name": data["order"].first_name,
-                "last_name": data["order"].last_name,
-                "email": data["order"].email,
-                "order_date": data["order"].order_date,
-                "start_time": data["order"].start_time,
-                "end_time": data["order"].end_time,
-                "club_id": data["order"].club_id,
-                "status": data["order"].status,
-                "operator_id": data["order"].operator_id,
-                "club_name": data["club"].name,
-                "club_address": data["club"].address
-            },
-            "operator": {
-                "id": data["operator"].id,
-                "email": data["operator"].email,
-                "username": data["operator"].username
-            },
-            "route": {
-                "id": data["route"]["id"],
-                "club_id": data["route"]["club_id"],
-                "points": data["route"]["points"]
-            },
-            "drone": {
-                "id": data["drone"].id,
-                "model": data["drone"].model,
-                "club_id": data["drone"].club_id,
-                "battery_charge": data["drone"].battery_charge
-            }
-        }
+        FlightTaskResponse(
+            id=data["flight_task"].id,
+            order=OrderResponse(
+                id=data["order"].id,
+                first_name=data["order"].first_name,
+                last_name=data["order"].last_name,
+                email=data["order"].email,
+                order_date=data["order"].order_date,
+                start_time=data["order"].start_time,
+                end_time=data["order"].end_time,
+                club_id=data["order"].club_id,
+                status=data["order"].status,
+                club_name=data["club"].name,
+                club_address=data["club"].address
+            ),
+            operator=UserPublic(
+                id=data["operator"].id,
+                email=data["operator"].email,
+                username=data["operator"].username,
+                is_superuser=data["operator"].is_superuser
+            ),
+            route=RouteResponse(
+                id=data["route"]["id"],
+                club_id=data["route"]["club_id"],
+                points=data["route"]["points"]
+            ),
+            drone=DroneResponse(
+                id=data["drone"].id,
+                model=data["drone"].model,
+                club_id=data["drone"].club_id,
+                battery_charge=data["drone"].battery_charge
+            ),
+            camera=CameraResponse(
+                id=data["camera"].id,
+                model=data["camera"].model,
+                width_px=data["camera"].width_px,
+                height_px=data["camera"].height_px,
+                fps=data["camera"].fps,
+                club_id=data["camera"].club_id
+            ),
+            lens=LensResponse(
+                id=data["lens"].id,
+                model=data["lens"].model,
+                min_focal_length=data["lens"].min_focal_length,
+                max_focal_length=data["lens"].max_focal_length,
+                zoom_ratio=data["lens"].zoom_ratio,
+                club_id=data["lens"].club_id
+            )
+        )
         for data in flight_tasks_data
     ]
 
-
 @router.get("/{id}", response_model=FlightTaskResponse)
 async def get_flight_task(
-        id: UUID,
-        session: SessionDep,
-        current_user: CurrentUser
+    id: UUID,
+    session: SessionDep,
+    current_user: CurrentUser
 ):
     data = get_flight_task_by_id(
         session,
@@ -329,37 +423,52 @@ async def get_flight_task(
         user_id=current_user.id,
         is_superuser=current_user.is_superuser
     )
-
-    return {
-        "id": data["flight_task"].id,
-        "order": {
-            "id": data["order"].id,
-            "first_name": data["order"].first_name,
-            "last_name": data["order"].last_name,
-            "email": data["order"].email,
-            "order_date": data["order"].order_date,
-            "start_time": data["order"].start_time,
-            "end_time": data["order"].end_time,
-            "club_id": data["order"].club_id,
-            "status": data["order"].status,
-            "operator_id": data["order"].operator_id,
-            "club_name": data["club"].name,
-            "club_address": data["club"].address
-        },
-        "operator": {
-            "id": data["operator"].id,
-            "email": data["operator"].email,
-            "username": data["operator"].username
-        },
-        "route": {
-            "id": data["route"]["id"],
-            "club_id": data["route"]["club_id"],
-            "points": data["route"]["points"]
-        },
-        "drone": {
-            "id": data["drone"].id,
-            "model": data["drone"].model,
-            "club_id": data["drone"].club_id,
-            "battery_charge": data["drone"].battery_charge
-        }
-    }
+    return FlightTaskResponse(
+        id=data["flight_task"].id,
+        order=OrderResponse(
+            id=data["order"].id,
+            first_name=data["order"].first_name,
+            last_name=data["order"].last_name,
+            email=data["order"].email,
+            order_date=data["order"].order_date,
+            start_time=data["order"].start_time,
+            end_time=data["order"].end_time,
+            club_id=data["order"].club_id,
+            status=data["order"].status,
+            club_name=data["club"].name,
+            club_address=data["club"].address
+        ),
+        operator=UserPublic(
+            id=data["operator"].id,
+            email=data["operator"].email,
+            username=data["operator"].username,
+            is_superuser=data["operator"].is_superuser
+        ),
+        route=RouteResponse(
+            id=data["route"]["id"],
+            club_id=data["route"]["club_id"],
+            points=data["route"]["points"]
+        ),
+        drone=DroneResponse(
+            id=data["drone"].id,
+            model=data["drone"].model,
+            club_id=data["drone"].club_id,
+            battery_charge=data["drone"].battery_charge
+        ),
+        camera=CameraResponse(
+            id=data["camera"].id,
+            model=data["camera"].model,
+            width_px=data["camera"].width_px,
+            height_px=data["camera"].height_px,
+            fps=data["camera"].fps,
+            club_id=data["camera"].club_id
+        ),
+        lens=LensResponse(
+            id=data["lens"].id,
+            model=data["lens"].model,
+            min_focal_length=data["lens"].min_focal_length,
+            max_focal_length=data["lens"].max_focal_length,
+            zoom_ratio=data["lens"].zoom_ratio,
+            club_id=data["lens"].club_id
+        )
+    )

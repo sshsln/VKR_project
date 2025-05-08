@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
 from typing import List
 from uuid import UUID
 
+from app import crud
 from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser
-from app.crud import get_all_clubs, get_club_by_id, create_club, update_club, archive_club, delete_club
-from app.schemas import ClubBase, ClubResponse, Message
+from app.crud import get_all_clubs, get_club_by_id
+from app.schemas import ClubBase, ClubResponse, Message, ClubUpdate
 
 router = APIRouter(prefix="/clubs", tags=["clubs"])
 
@@ -39,17 +39,17 @@ async def create_club(
     club_in: ClubBase,
     session: SessionDep
 ):
-    club = create_club(session, club_in)
+    club = crud.create_club(session, club_in)
     return club
 
 
 @router.patch("/{club_id}", response_model=ClubResponse, dependencies=[Depends(get_current_active_superuser)])
 async def update_club(
     club_id: UUID,
-    club_in: ClubBase,
+    club_in: ClubUpdate,
     session: SessionDep
 ):
-    club = update_club(session, club_id, club_in)
+    club = crud.update_club(session, club_id, club_in)
     return club
 
 
@@ -58,7 +58,7 @@ async def archive_club(
     club_id: UUID,
     session: SessionDep
 ):
-    archive_club(session, club_id)
+    crud.archive_club(session, club_id)
     return Message(message="Club archived successfully")
 
 
@@ -67,5 +67,5 @@ async def delete_club(
     club_id: UUID,
     session: SessionDep
 ):
-    delete_club(session, club_id)
+    crud.delete_club(session, club_id)
     return Message(message="Club deleted successfully")
