@@ -1,15 +1,12 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlmodel import Session
 from typing import List
 from uuid import UUID
 
 from app import crud
 from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser, SuperUser
-from app.crud import get_order_with_club_data, update_order_status
+from app.crud import get_order_with_club_data
 from app.models import Order, FlightTask, Club
-from app.schemas import OrderWithOperator, OrderResponse, OrderStatusUpdate, OrderUpdate, OrderStatus, OrderBase, \
-    OrderCreate
-from app.scheduler import update_order_statuses
+from app.schemas import OrderWithOperator, OrderResponse, OrderUpdate, OrderStatus, OrderBase, OrderCreate
 
 router = APIRouter(prefix="/orders", tags=["orders"])
 

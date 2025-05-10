@@ -1,5 +1,5 @@
 import json
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Tuple
 
 from fastapi import HTTPException
 
@@ -167,6 +167,13 @@ def create_route(session: Session, club_id: UUID, points: List[RoutePoint]) -> R
 
 
 def create_flight_task(session: Session, flight_task_in: FlightTaskCreate, operator_id: UUID) -> Tuple[FlightTask, Order, User, Route, Drone, Camera, Lens, Club]:
+    # Проверяем, не существует ли уже flight_task для данного order_id
+    existing_task = session.exec(
+        select(FlightTask).where(FlightTask.order_id == flight_task_in.order_id)
+    ).first()
+    if existing_task:
+        raise HTTPException(status_code=400, detail="A flight task already exists for this order")
+
     order = session.get(Order, flight_task_in.order_id)
     if not order or order.status != OrderStatus.new or order.operator_id is not None:
         raise HTTPException(status_code=400, detail="Order is not available")
@@ -179,9 +186,11 @@ def create_flight_task(session: Session, flight_task_in: FlightTaskCreate, opera
     if not camera or not camera.is_available or camera.club_id != order.club_id:
         raise HTTPException(status_code=400, detail="Camera not found, not available, or does not belong to the club")
 
-    lens = session.get(Lens, flight_task_in.lens_id)
-    if not lens or not lens.is_available or lens.club_id != order.club_id:
-        raise HTTPException(status_code=400, detail="Lens not found, not available, or does not belong to the club")
+    lens = None
+    if flight_task_in.lens_id:
+        lens = session.get(Lens, flight_task_in.lens_id)
+        if not lens or not lens.is_available or lens.club_id != order.club_id:
+            raise HTTPException(status_code=400, detail="Lens not found, not available, or does not belong to the club")
 
     club = session.get(Club, order.club_id)
     if not club or not club.is_available:
@@ -329,6 +338,7 @@ def create_club(session: Session, club_in: ClubBase) -> ClubResponse:
         latitude=club.latitude,
         longitude=club.longitude
     )
+
 
 def update_club(session: Session, club_id: UUID, club_in: ClubUpdate) -> ClubResponse:
     club = session.get(Club, club_id)

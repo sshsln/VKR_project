@@ -1,14 +1,16 @@
 import uuid
 from datetime import date, time, datetime
-from typing import Optional, List
+from typing import Optional
 from pydantic import EmailStr
 from sqlmodel import Field, SQLModel
 from uuid import UUID
 from enum import Enum as PyEnum
 import pytz
 
+
 def moscow_now():
     return datetime.now(pytz.timezone('Europe/Moscow'))
+
 
 class OrderStatus(str, PyEnum):
     new = "new"
@@ -105,6 +107,6 @@ class FlightTask(SQLModel, table=True):
     route_id: UUID = Field(foreign_key="route.id")
     drone_id: UUID = Field(foreign_key="drone.id")
     camera_id: UUID = Field(foreign_key="camera.id")
-    lens_id: UUID = Field(foreign_key="lens.id")
+    lens_id: Optional[UUID] = Field(foreign_key="lens.id", default=None)
     created_at: datetime = Field(default_factory=moscow_now)
     updated_at: Optional[datetime] = None

@@ -5,8 +5,8 @@ from typing import List
 from app import crud
 from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser
 from app.models import Order, Route, FlightTask, Drone, OrderStatus, Camera, Lens, User, Club
-from app.schemas import FlightTaskResponse, RoutePoint, RoutePointsData, FlightTaskCreate, FlightTaskUpdate, \
-    OrderResponse, UserPublic, RouteResponse, DroneResponse, CameraResponse, LensResponse, Message
+from app.schemas import FlightTaskResponse, RoutePoint, FlightTaskCreate, FlightTaskUpdate, OrderResponse, \
+     UserPublic, RouteResponse, DroneResponse, CameraResponse, LensResponse, Message
 from app.crud import get_flight_task_by_id, get_all_flight_tasks
 import json
 
@@ -134,6 +134,7 @@ async def get_flight_tasks(
         for data in flight_tasks_data
     ]
 
+
 @router.patch("/{flight_task_id}", response_model=FlightTaskResponse)
 async def update_flight_task(
     flight_task_id: UUID,
@@ -248,6 +249,7 @@ async def update_flight_task(
         )
     )
 
+
 @router.delete("/{flight_task_id}", response_model=Message, dependencies=[Depends(get_current_active_superuser)])
 async def delete_flight_task(
     flight_task_id: UUID,
@@ -279,6 +281,7 @@ async def delete_flight_task(
 
     session.commit()
     return Message(message="Flight task and associated route deleted successfully")
+
 
 @router.get("/active", response_model=List[FlightTaskResponse])
 async def get_active_flight_tasks(
@@ -343,6 +346,7 @@ async def get_active_flight_tasks(
         )
         for data in flight_tasks_data
     ]
+
 
 @router.get("/history", response_model=List[FlightTaskResponse])
 async def get_completed_flight_tasks(
@@ -410,6 +414,7 @@ async def get_completed_flight_tasks(
         )
         for data in flight_tasks_data
     ]
+
 
 @router.get("/{id}", response_model=FlightTaskResponse)
 async def get_flight_task(

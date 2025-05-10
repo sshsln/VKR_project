@@ -1,4 +1,3 @@
-import uuid
 from datetime import date, time, datetime
 from typing import Optional, List
 from pydantic import EmailStr, field_validator, BaseModel, validator
@@ -72,6 +71,7 @@ class Message(SQLModel):
 
 class Token(SQLModel):
     access_token: str
+    refresh_token: str
     token_type: str = "bearer"
 
 
@@ -85,6 +85,10 @@ class TokenPayload(SQLModel):
         if isinstance(value, str):
             return UUID(value)
         return value
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str
 
 
 class ClubBase(SQLModel):
@@ -298,7 +302,7 @@ class FlightTaskCreate(BaseModel):
     order_id: UUID
     drone_id: UUID
     camera_id: UUID
-    lens_id: UUID
+    lens_id: Optional[UUID] = None
     points: List[RoutePoint]
 
 
@@ -316,7 +320,7 @@ class FlightTaskResponse(BaseModel):
     route: RouteResponse
     drone: DroneResponse
     camera: CameraResponse
-    lens: LensResponse
+    lens: Optional[LensResponse]
 
 
 class FlightTaskAdmin(FlightTaskResponse):

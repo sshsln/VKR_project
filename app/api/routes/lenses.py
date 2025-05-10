@@ -9,6 +9,7 @@ from app.schemas import LensBase, LensResponse, Message, LensUpdate
 
 router = APIRouter(prefix="/lenses", tags=["lenses"])
 
+
 @router.get("/", response_model=List[LensResponse])
 async def get_lenses(
     session: SessionDep,
@@ -20,6 +21,7 @@ async def get_lenses(
     include_archived = current_user.is_superuser
     lenses = get_all_lenses(session, include_archived=include_archived, club_id=club_id)
     return lenses[skip:skip + limit]
+
 
 @router.get("/{lens_id}", response_model=LensResponse)
 async def get_lens(
@@ -34,6 +36,7 @@ async def get_lens(
         raise HTTPException(status_code=403, detail="Lens is archived and not accessible")
     return lens
 
+
 @router.post("/", response_model=LensResponse, dependencies=[Depends(get_current_active_superuser)])
 async def create_lens(
     lens_in: LensBase,
@@ -41,6 +44,7 @@ async def create_lens(
 ):
     lens = crud.create_lens(session, lens_in)
     return lens
+
 
 @router.patch("/{lens_id}", response_model=LensResponse, dependencies=[Depends(get_current_active_superuser)])
 async def update_lens(
@@ -51,6 +55,7 @@ async def update_lens(
     lens = crud.update_lens(session, lens_id, lens_in)
     return lens
 
+
 @router.patch("/{lens_id}/archive", response_model=Message, dependencies=[Depends(get_current_active_superuser)])
 async def archive_lens(
     lens_id: UUID,
@@ -58,6 +63,7 @@ async def archive_lens(
 ):
     crud.archive_lens(session, lens_id)
     return Message(message="Lens archived successfully")
+
 
 @router.delete("/{lens_id}", response_model=Message, dependencies=[Depends(get_current_active_superuser)])
 async def delete_lens(
