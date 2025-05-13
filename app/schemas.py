@@ -126,6 +126,17 @@ class OrderBase(SQLModel):
     status: OrderStatus = OrderStatus.new
 
 
+class OrderUpdate(SQLModel):
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    email: Optional[EmailStr] = None
+    order_date: Optional[date] = None
+    start_time: Optional[time] = None
+    end_time: Optional[time] = None
+    club_id: Optional[UUID] = None
+    status: Optional[OrderStatus] = None
+
+
 class OrderCreate(SQLModel):
     first_name: str = Field(max_length=255)
     last_name: str = Field(max_length=255)
@@ -142,23 +153,11 @@ class OrderResponse(OrderBase):
     club_address: str
 
 
-class OrderAdmin(OrderResponse):
-    operator_id: Optional[UUID]
-    is_available: bool
-    created_at: datetime
-    updated_at: Optional[datetime]
-
-
-class OrderWithOperator(OrderAdmin):
+class OrderWithOperator(OrderResponse):
     operator: Optional[UserPublic]
 
 
 class OrderStatusUpdate(BaseModel):
-    order_id: UUID
-    status: OrderStatus
-
-
-class OrderUpdate(BaseModel):
     status: Optional[OrderStatus] = None
 
     @validator("status")
@@ -176,6 +175,13 @@ class OrderUpdate(BaseModel):
         if current_status and v not in allowed_transitions[current_status]:
             raise ValueError(f"Invalid status transition from {current_status} to {v}")
         return v
+
+
+class OrderAdmin(OrderResponse):
+    # operator_id: Optional[UUID]
+    is_available: bool
+    created_at: datetime
+    updated_at: Optional[datetime]
 
 
 class RoutePoint(BaseModel):

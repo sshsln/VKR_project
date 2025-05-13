@@ -10,7 +10,7 @@ from app.core.security import get_password_hash, verify_password
 from app.models import User, Order, Club, Drone, Camera, Lens, FlightTask, Route
 from app.schemas import UserCreate, UserUpdate, OrderStatus, OrderWithOperator, UserPublic, OrderResponse, RoutePoint, \
     ClubBase, DroneBase, FlightTaskCreate, DroneUpdate, DroneResponse, CameraBase, CameraResponse, CameraUpdate, \
-    LensBase, LensResponse, LensUpdate, ClubResponse, ClubUpdate
+    LensBase, LensResponse, LensUpdate, ClubResponse, ClubUpdate, OrderUpdate
 
 
 def create_user(*, session: Session, user_create: UserCreate) -> User:
@@ -155,6 +155,63 @@ def update_order_status(session: Session, order_id: UUID, status: OrderStatus, u
     session.commit()
     session.refresh(order)
     return order
+
+
+def admin_update_order(session: Session, order_id: UUID, order_in: OrderUpdate) -> OrderResponse:
+    order = session.get(Order, order_id)
+    if not order:
+        raise HTTPException(status_code=404, detail="Order not found")
+
+    # Проверка существования клуба, если club_id предоставлен
+    club_id = order_in.club_id if order_in.club_id is not None else order.club_id
+    club = session.get(Club, club_id)
+    if not club or not club.is_available:
+        raise HTTPException(status_code=404, detail="Club not found or archived")
+
+    # Валидация перехода статуса, если status предоставлен
+    if order_in.status is not None and order_in.status != order.status:
+        allowed_transitions = {
+            OrderStatus.new: [OrderStatus.in_processing, OrderStatus.cancelled],
+            OrderStatus.in_processing: [OrderStatus.in_progress, OrderStatus.cancelled, OrderStatus.new],
+            OrderStatus.in_progress: [OrderStatus.completed],
+            OrderStatus.completed: [],
+            OrderStatus.cancelled: []
+        }
+        if order_in.status not in allowed_transitions[order.status]:
+            raise HTTPException(status_code=400,
+                                detail=f"Invalid status transition from {order.status} to {order_in.status}")
+
+    # Обновление только предоставленных полей
+    if order_in.first_name is not None:
+        order.first_name = order_in.first_name
+    if order_in.last_name is not None:
+        order.last_name = order_in.last_name
+    if order_in.email is not None:
+        order.email = order_in.email
+    if order_in.order_date is not None:
+        order.order_date = order_in.order_date
+    if order_in.start_time is not None:
+        order.start_time = order_in.start_time
+    if order_in.end_time is not None:
+        order.end_time = order_in.end_time
+    if order_in.club_id is not None:
+        order.club_id = order_in.club_id
+    if order_in.status is not None:
+        order.status = order_in.status
+
+    return OrderResponse(
+        id=order.id,
+        first_name=order.first_name,
+        last_name=order.last_name,
+        email=order.email,
+        order_date=order.order_date,
+        start_time=order.start_time,
+        end_time=order.end_time,
+        club_id=order.club_id,
+        status=order.status,
+        club_name=club.name,
+        club_address=club.address
+    )
 
 
 def create_route(session: Session, club_id: UUID, points: List[RoutePoint]) -> Route:
