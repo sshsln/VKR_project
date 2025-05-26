@@ -49,19 +49,8 @@ class UserPublic(UserBase):
     id: UUID
 
 
-class UserAdmin(UserPublic):
-    is_available: bool
-    created_at: datetime
-    updated_at: Optional[datetime]
-
-
 class UsersPublic(SQLModel):
     data: List[UserPublic]
-    count: int
-
-
-class UsersAdmin(SQLModel):
-    data: List[UserAdmin]
     count: int
 
 
@@ -111,8 +100,6 @@ class ClubResponse(ClubBase):
 
 class ClubAdmin(ClubResponse):
     is_available: bool
-    created_at: datetime
-    updated_at: Optional[datetime]
 
 
 class OrderBase(SQLModel):
@@ -177,13 +164,6 @@ class OrderStatusUpdate(BaseModel):
         return v
 
 
-class OrderAdmin(OrderResponse):
-    # operator_id: Optional[UUID]
-    is_available: bool
-    created_at: datetime
-    updated_at: Optional[datetime]
-
-
 class RoutePoint(BaseModel):
     sequence_number: int
     latitude: float
@@ -205,20 +185,6 @@ class RouteBase(SQLModel):
 
 class RouteResponse(RouteBase):
     id: UUID
-    points: List[RoutePoint]
-
-
-class RouteAdmin(RouteResponse):
-    is_available: bool
-    created_at: datetime
-    updated_at: Optional[datetime]
-
-
-class RouteUpdate(BaseModel):
-    points: str
-
-
-class RoutePointsData(BaseModel):
     points: List[RoutePoint]
 
 
@@ -244,8 +210,6 @@ class CameraResponse(CameraBase):
 
 class CameraAdmin(CameraResponse):
     is_available: bool
-    created_at: datetime
-    updated_at: Optional[datetime]
 
 
 class LensBase(SQLModel):
@@ -269,8 +233,6 @@ class LensResponse(LensBase):
 
 class LensAdmin(LensResponse):
     is_available: bool
-    created_at: datetime
-    updated_at: Optional[datetime]
 
 
 class DroneBase(SQLModel):
@@ -291,17 +253,6 @@ class DroneResponse(DroneBase):
 
 class DroneAdmin(DroneResponse):
     is_available: bool
-    created_at: datetime
-    updated_at: Optional[datetime]
-
-
-class FlightTaskBase(SQLModel):
-    order_id: UUID
-    operator_id: UUID
-    route_id: UUID
-    drone_id: UUID
-    camera_id: UUID
-    lens_id: UUID
 
 
 class FlightTaskCreate(BaseModel):
@@ -327,9 +278,3 @@ class FlightTaskResponse(BaseModel):
     drone: DroneResponse
     camera: CameraResponse
     lens: Optional[LensResponse]
-
-
-class FlightTaskAdmin(FlightTaskResponse):
-    is_available: bool
-    created_at: datetime
-    updated_at: Optional[datetime]

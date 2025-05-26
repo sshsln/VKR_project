@@ -5,7 +5,7 @@ from uuid import UUID
 from app import crud
 from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser
 from app.crud import get_all_drones, get_drone_by_id
-from app.schemas import DroneBase, DroneResponse, Message, DroneUpdate
+from app.schemas import DroneBase, DroneResponse, Message, DroneUpdate, DroneAdmin
 
 router = APIRouter(prefix="/drones", tags=["drones"])
 
@@ -46,7 +46,7 @@ async def create_drone(
     return drone
 
 
-@router.patch("/{drone_id}", response_model=DroneResponse, dependencies=[Depends(get_current_active_superuser)])
+@router.patch("/{drone_id}", response_model=DroneAdmin, dependencies=[Depends(get_current_active_superuser)])
 async def update_drone(
     drone_id: UUID,
     drone_in: DroneUpdate,
@@ -63,6 +63,15 @@ async def archive_drone(
 ):
     crud.archive_drone(session, drone_id)
     return Message(message="Drone archived successfully")
+
+
+@router.patch("/{drone_id}/activate", response_model=Message, dependencies=[Depends(get_current_active_superuser)])
+async def activate_drone(
+    drone_id: UUID,
+    session: SessionDep
+):
+    crud.activate_drone(session, drone_id)
+    return Message(message="Drone activated successfully")
 
 
 @router.delete("/{drone_id}", response_model=Message, dependencies=[Depends(get_current_active_superuser)])

@@ -5,7 +5,7 @@ from uuid import UUID
 from app import crud
 from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser
 from app.crud import get_all_lenses, get_lens_by_id
-from app.schemas import LensBase, LensResponse, Message, LensUpdate
+from app.schemas import LensBase, LensResponse, Message, LensUpdate, LensAdmin
 
 router = APIRouter(prefix="/lenses", tags=["lenses"])
 
@@ -46,7 +46,7 @@ async def create_lens(
     return lens
 
 
-@router.patch("/{lens_id}", response_model=LensResponse, dependencies=[Depends(get_current_active_superuser)])
+@router.patch("/{lens_id}", response_model=LensAdmin, dependencies=[Depends(get_current_active_superuser)])
 async def update_lens(
     lens_id: UUID,
     lens_in: LensUpdate,
@@ -63,6 +63,15 @@ async def archive_lens(
 ):
     crud.archive_lens(session, lens_id)
     return Message(message="Lens archived successfully")
+
+
+@router.patch("/{lens_id}/activate", response_model=Message, dependencies=[Depends(get_current_active_superuser)])
+async def activate_lens(
+    lens_id: UUID,
+    session: SessionDep
+):
+    crud.activate_lens(session, lens_id)
+    return Message(message="Lens activated successfully")
 
 
 @router.delete("/{lens_id}", response_model=Message, dependencies=[Depends(get_current_active_superuser)])

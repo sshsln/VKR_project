@@ -135,7 +135,7 @@ async def get_flight_tasks(
     ]
 
 
-@router.patch("/{flight_task_id}", response_model=FlightTaskResponse)
+@router.patch("/{flight_task_id}", response_model=Message)
 async def update_flight_task(
     flight_task_id: UUID,
     task_in: FlightTaskUpdate,
@@ -199,55 +199,7 @@ async def update_flight_task(
     lens = session.get(Lens, task.lens_id)
     club = session.get(Club, order.club_id)
 
-    return FlightTaskResponse(
-        id=task.id,
-        order=OrderResponse(
-            id=order.id,
-            first_name=order.first_name,
-            last_name=order.last_name,
-            email=order.email,
-            order_date=order.order_date,
-            start_time=order.start_time,
-            end_time=order.end_time,
-            club_id=order.club_id,
-            status=order.status,
-            club_name=club.name,
-            club_address=club.address
-        ),
-        operator=UserPublic(
-            id=operator.id,
-            email=operator.email,
-            username=operator.username,
-            is_superuser=operator.is_superuser
-        ),
-        route=RouteResponse(
-            id=route.id,
-            club_id=route.club_id,
-            points=[RoutePoint(**point) for point in json.loads(route.points)]
-        ),
-        drone=DroneResponse(
-            id=drone.id,
-            model=drone.model,
-            club_id=drone.club_id,
-            battery_charge=drone.battery_charge
-        ),
-        camera=CameraResponse(
-            id=camera.id,
-            model=camera.model,
-            width_px=camera.width_px,
-            height_px=camera.height_px,
-            fps=camera.fps,
-            club_id=camera.club_id
-        ),
-        lens=LensResponse(
-            id=lens.id,
-            model=lens.model,
-            min_focal_length=lens.min_focal_length,
-            max_focal_length=lens.max_focal_length,
-            zoom_ratio=lens.zoom_ratio,
-            club_id=lens.club_id
-        )
-    )
+    return Message(message="Flight task and associated route deleted successfully")
 
 
 @router.delete("/{flight_task_id}", response_model=Message, dependencies=[Depends(get_current_active_superuser)])

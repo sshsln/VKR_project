@@ -174,7 +174,7 @@ async def create_order(
 
 
 @router.patch("/admin/{order_id}", response_model=OrderResponse, dependencies=[Depends(get_current_active_superuser)])
-async def admin_update_order(
+async def update_order(
     order_id: UUID,
     order_in: OrderUpdate,
     session: SessionDep

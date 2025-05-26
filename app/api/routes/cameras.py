@@ -5,7 +5,7 @@ from uuid import UUID
 from app import crud
 from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser
 from app.crud import get_all_cameras, get_camera_by_id
-from app.schemas import CameraBase, CameraResponse, Message, CameraUpdate
+from app.schemas import CameraBase, CameraResponse, Message, CameraUpdate, CameraAdmin
 
 router = APIRouter(prefix="/cameras", tags=["cameras"])
 
@@ -46,7 +46,7 @@ async def create_camera(
     return camera
 
 
-@router.patch("/{camera_id}", response_model=CameraResponse, dependencies=[Depends(get_current_active_superuser)])
+@router.patch("/{camera_id}", response_model=CameraAdmin, dependencies=[Depends(get_current_active_superuser)])
 async def update_camera(
     camera_id: UUID,
     camera_in: CameraUpdate,
@@ -62,6 +62,15 @@ async def archive_camera(
     session: SessionDep
 ):
     crud.archive_camera(session, camera_id)
+    return Message(message="Camera archived successfully")
+
+
+@router.patch("/{camera_id}/activate", response_model=Message, dependencies=[Depends(get_current_active_superuser)])
+async def activate_camera(
+    camera_id: UUID,
+    session: SessionDep
+):
+    crud.activate_camera(session, camera_id)
     return Message(message="Camera archived successfully")
 
 

@@ -5,7 +5,7 @@ from uuid import UUID
 from app import crud
 from app.api.deps import SessionDep, CurrentUser, get_current_active_superuser
 from app.crud import get_all_clubs, get_club_by_id
-from app.schemas import ClubBase, ClubResponse, Message, ClubUpdate
+from app.schemas import ClubBase, ClubResponse, Message, ClubUpdate, ClubAdmin
 
 router = APIRouter(prefix="/clubs", tags=["clubs"])
 
@@ -43,7 +43,7 @@ async def create_club(
     return club
 
 
-@router.patch("/{club_id}", response_model=ClubResponse, dependencies=[Depends(get_current_active_superuser)])
+@router.patch("/{club_id}", response_model=ClubAdmin, dependencies=[Depends(get_current_active_superuser)])
 async def update_club(
     club_id: UUID,
     club_in: ClubUpdate,
@@ -60,6 +60,15 @@ async def archive_club(
 ):
     crud.archive_club(session, club_id)
     return Message(message="Club archived successfully")
+
+
+@router.patch("/{club_id}/activate", response_model=Message, dependencies=[Depends(get_current_active_superuser)])
+async def activate_club(
+    club_id: UUID,
+    session: SessionDep
+):
+    crud.activate_club(session, club_id)
+    return Message(message="Club activated successfully")
 
 
 @router.delete("/{club_id}", response_model=Message, dependencies=[Depends(get_current_active_superuser)])

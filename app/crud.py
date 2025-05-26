@@ -3,6 +3,7 @@ from typing import Any, List, Tuple
 
 from fastapi import HTTPException
 
+from sqlalchemy import text
 from sqlmodel import Session, select
 from uuid import UUID
 
@@ -10,7 +11,8 @@ from app.core.security import get_password_hash, verify_password
 from app.models import User, Order, Club, Drone, Camera, Lens, FlightTask, Route
 from app.schemas import UserCreate, UserUpdate, OrderStatus, OrderWithOperator, UserPublic, OrderResponse, RoutePoint, \
     ClubBase, DroneBase, FlightTaskCreate, DroneUpdate, DroneResponse, CameraBase, CameraResponse, CameraUpdate, \
-    LensBase, LensResponse, LensUpdate, ClubResponse, ClubUpdate, OrderUpdate
+    LensBase, LensResponse, LensUpdate, ClubResponse, ClubUpdate, OrderUpdate, CameraAdmin, ClubAdmin, DroneAdmin, \
+    LensAdmin
 
 
 def create_user(*, session: Session, user_create: UserCreate) -> User:
@@ -55,6 +57,9 @@ def authenticate(*, session: Session, email: str, password: str) -> User | None:
 def get_new_orders(
         session: Session, skip: int = 0, limit: int = 100
 ) -> List[OrderResponse]:
+    session.execute(text("SELECT update_all_orders_status()"))
+    session.commit()
+
     statement = (
         select(Order, Club.name, Club.address)
         .join(Club, Order.club_id == Club.id)
@@ -77,6 +82,9 @@ def get_new_orders(
 def get_assigned_orders(
         session: Session, operator_id: UUID, skip: int = 0, limit: int = 100
 ) -> List[OrderResponse]:
+    session.execute(text("SELECT update_all_orders_status()"))
+    session.commit()
+
     statement = (
         select(Order, Club.name, Club.address)
         .join(Club, Order.club_id == Club.id)
@@ -99,6 +107,9 @@ def get_assigned_orders(
 def get_all_orders_with_operators(
         session: Session, skip: int = 0, limit: int = 100
 ) -> List[OrderWithOperator]:
+    session.execute(text("SELECT update_all_orders_status()"))
+    session.commit()
+
     statement = (
         select(Order, User, Club.name, Club.address)
         .outerjoin(User, Order.operator_id == User.id)
@@ -121,6 +132,10 @@ def get_all_orders_with_operators(
 
 def get_order_with_club_data(session: Session, order_id: UUID) -> dict | None:
     # Выполняем JOIN между Order и Club
+
+    session.execute(text("SELECT update_all_orders_status()"))
+    session.commit()
+
     statement = (
         select(Order, Club)
         .where(Order.id == order_id)
@@ -199,6 +214,10 @@ def admin_update_order(session: Session, order_id: UUID, order_in: OrderUpdate) 
     if order_in.status is not None:
         order.status = order_in.status
 
+    session.add(order)
+    session.commit()
+    session.refresh(order)
+
     return OrderResponse(
         id=order.id,
         first_name=order.first_name,
@@ -254,8 +273,8 @@ def create_flight_task(session: Session, flight_task_in: FlightTaskCreate, opera
         raise HTTPException(status_code=400, detail="Club not found or not available")
 
     points_list = flight_task_in.points
-    if len(points_list) < 2:
-        raise HTTPException(status_code=400, detail="Route must have at least 2 points")
+    if len(points_list) < 3:
+        raise HTTPException(status_code=400, detail="Route must have at least 3 points")
     if points_list[0].latitude != points_list[-1].latitude or points_list[0].longitude != points_list[-1].longitude:
         raise HTTPException(status_code=400, detail="First and last points must be the same")
 
@@ -397,7 +416,7 @@ def create_club(session: Session, club_in: ClubBase) -> ClubResponse:
     )
 
 
-def update_club(session: Session, club_id: UUID, club_in: ClubUpdate) -> ClubResponse:
+def update_club(session: Session, club_id: UUID, club_in: ClubUpdate) -> ClubAdmin:
     club = session.get(Club, club_id)
     if not club:
         raise HTTPException(status_code=404, detail="Club not found")
@@ -410,12 +429,13 @@ def update_club(session: Session, club_id: UUID, club_in: ClubUpdate) -> ClubRes
     session.add(club)
     session.commit()
     session.refresh(club)
-    return ClubResponse(
+    return ClubAdmin(
         id=club.id,
         name=club.name,
         address=club.address,
         latitude=club.latitude,
-        longitude=club.longitude
+        longitude=club.longitude,
+        is_available=club.is_available
     )
 
 
@@ -433,6 +453,19 @@ def archive_club(session: Session, club_id: UUID) -> None:
     session.query(Drone).filter(Drone.club_id == club_id).update({"is_available": False})
     session.query(Camera).filter(Camera.club_id == club_id).update({"is_available": False})
     session.query(Lens).filter(Lens.club_id == club_id).update({"is_available": False})
+
+    session.add(club)
+    session.commit()
+
+
+def activate_club(session: Session, club_id: UUID) -> None:
+    club = session.get(Club, club_id)
+    if not club:
+        raise HTTPException(status_code=404, detail="Club not found")
+    if club.is_available:
+        raise HTTPException(status_code=400, detail="Club is already available")
+
+    club.is_available = True
 
     session.add(club)
     session.commit()
@@ -472,17 +505,17 @@ def get_drone_by_id(session: Session, drone_id: UUID) -> Drone | None:
     return session.get(Drone, drone_id)
 
 
-def get_drones_by_club(session: Session, club_id: UUID, include_archived: bool = False) -> List[dict]:
-    statement = (
-        select(Drone)
-        .join(Club)
-        .where(Drone.club_id == club_id, Club.is_available == True)
-    )
-    if not include_archived:
-        statement = statement.where(Drone.is_available == True)
-
-    drones = session.exec(statement).all()
-    return [{"drone": drone} for drone in drones]
+# def get_drones_by_club(session: Session, club_id: UUID, include_archived: bool = False) -> List[dict]:
+#     statement = (
+#         select(Drone)
+#         .join(Club)
+#         .where(Drone.club_id == club_id, Club.is_available == True)
+#     )
+#     if not include_archived:
+#         statement = statement.where(Drone.is_available == True)
+#
+#     drones = session.exec(statement).all()
+#     return [{"drone": drone} for drone in drones]
 
 
 def create_drone(session: Session, drone_in: DroneBase) -> DroneResponse:
@@ -502,7 +535,7 @@ def create_drone(session: Session, drone_in: DroneBase) -> DroneResponse:
     return drone
 
 
-def update_drone(session: Session, drone_id: UUID, drone_in: DroneUpdate) -> DroneResponse:
+def update_drone(session: Session, drone_id: UUID, drone_in: DroneUpdate) -> DroneAdmin:
     drone = session.get(Drone, drone_id)
     if not drone:
         raise HTTPException(status_code=404, detail="Drone not found")
@@ -522,14 +555,13 @@ def update_drone(session: Session, drone_id: UUID, drone_in: DroneUpdate) -> Dro
     session.commit()
     session.refresh(drone)
 
-    response = DroneResponse(
+    return DroneAdmin(
         id=drone.id,
         model=drone.model,
         club_id=drone.club_id,
-        battery_charge=drone.battery_charge
+        battery_charge=drone.battery_charge,
+        is_available = drone.is_available
     )
-    print("Returning:", response)
-    return response
 
 
 def archive_drone(session: Session, drone_id: UUID) -> None:
@@ -544,6 +576,18 @@ def archive_drone(session: Session, drone_id: UUID) -> None:
         raise HTTPException(status_code=400, detail="Cannot archive drone with flight tasks")
 
     drone.is_available = False
+    session.add(drone)
+    session.commit()
+
+
+def activate_drone(session: Session, drone_id: UUID) -> None:
+    drone = session.get(Drone, drone_id)
+    if not drone:
+        raise HTTPException(status_code=404, detail="Drone not found")
+    if drone.is_available:
+        raise HTTPException(status_code=400, detail="Drone is already available")
+
+    drone.is_available = True
     session.add(drone)
     session.commit()
 
@@ -574,17 +618,17 @@ def get_camera_by_id(session: Session, camera_id: UUID) -> Camera | None:
     return session.get(Camera, camera_id)
 
 
-def get_cameras_by_club(session: Session, club_id: UUID, include_archived: bool = False) -> List[dict]:
-    statement = (
-        select(Camera)
-        .join(Club)
-        .where(Camera.club_id == club_id, Club.is_available == True)
-    )
-    if not include_archived:
-        statement = statement.where(Camera.is_available == True)
-
-    cameras = session.exec(statement).all()
-    return [{"camera": camera} for camera in cameras]
+# def get_cameras_by_club(session: Session, club_id: UUID, include_archived: bool = False) -> List[dict]:
+#     statement = (
+#         select(Camera)
+#         .join(Club)
+#         .where(Camera.club_id == club_id, Club.is_available == True)
+#     )
+#     if not include_archived:
+#         statement = statement.where(Camera.is_available == True)
+#
+#     cameras = session.exec(statement).all()
+#     return [{"camera": camera} for camera in cameras]
 
 
 def create_camera(session: Session, camera_in: CameraBase) -> CameraResponse:
@@ -614,7 +658,7 @@ def create_camera(session: Session, camera_in: CameraBase) -> CameraResponse:
     )
 
 
-def update_camera(session: Session, camera_id: UUID, camera_in: CameraUpdate) -> CameraResponse:
+def update_camera(session: Session, camera_id: UUID, camera_in: CameraUpdate) -> CameraAdmin:
     camera = session.get(Camera, camera_id)
     if not camera:
         raise HTTPException(status_code=404, detail="Camera not found")
@@ -638,13 +682,14 @@ def update_camera(session: Session, camera_id: UUID, camera_in: CameraUpdate) ->
     session.commit()
     session.refresh(camera)
 
-    return CameraResponse(
+    return CameraAdmin(
         id=camera.id,
         model=camera.model,
         width_px=camera.width_px,
         height_px=camera.height_px,
         fps=camera.fps,
-        club_id=camera.club_id
+        club_id=camera.club_id,
+        is_available = camera.is_available
     )
 
 
@@ -660,6 +705,18 @@ def archive_camera(session: Session, camera_id: UUID) -> None:
         raise HTTPException(status_code=400, detail="Cannot archive camera with flight tasks")
 
     camera.is_available = False
+    session.add(camera)
+    session.commit()
+
+
+def activate_camera(session: Session, camera_id: UUID) -> None:
+    camera = session.get(Camera, camera_id)
+    if not camera:
+        raise HTTPException(status_code=404, detail="Camera not found")
+    if camera.is_available:
+        raise HTTPException(status_code=400, detail="Camera is already available")
+
+    camera.is_available = True
     session.add(camera)
     session.commit()
 
@@ -690,17 +747,17 @@ def get_lens_by_id(session: Session, lens_id: UUID) -> Lens | None:
     return session.get(Lens, lens_id)
 
 
-def get_lenses_by_club(session: Session, club_id: UUID, include_archived: bool = False) -> List[dict]:
-    statement = (
-        select(Lens)
-        .join(Club)
-        .where(Lens.club_id == club_id, Club.is_available == True)
-    )
-    if not include_archived:
-        statement = statement.where(Lens.is_available == True)
-
-    lenses = session.exec(statement).all()
-    return [{"lens": lens} for lens in lenses]
+# def get_lenses_by_club(session: Session, club_id: UUID, include_archived: bool = False) -> List[dict]:
+#     statement = (
+#         select(Lens)
+#         .join(Club)
+#         .where(Lens.club_id == club_id, Club.is_available == True)
+#     )
+#     if not include_archived:
+#         statement = statement.where(Lens.is_available == True)
+#
+#     lenses = session.exec(statement).all()
+#     return [{"lens": lens} for lens in lenses]
 
 
 def create_lens(session: Session, lens_in: LensBase) -> LensResponse:
@@ -730,7 +787,7 @@ def create_lens(session: Session, lens_in: LensBase) -> LensResponse:
     )
 
 
-def update_lens(session: Session, lens_id: UUID, lens_in: LensUpdate) -> LensResponse:
+def update_lens(session: Session, lens_id: UUID, lens_in: LensUpdate) -> LensAdmin:
     lens = session.get(Lens, lens_id)
     if not lens:
         raise HTTPException(status_code=404, detail="Lens not found")
@@ -754,13 +811,14 @@ def update_lens(session: Session, lens_id: UUID, lens_in: LensUpdate) -> LensRes
     session.commit()
     session.refresh(lens)
 
-    return LensResponse(
+    return LensAdmin(
         id=lens.id,
         model=lens.model,
         min_focal_length=lens.min_focal_length,
         max_focal_length=lens.max_focal_length,
         zoom_ratio=lens.zoom_ratio,
-        club_id=lens.club_id
+        club_id=lens.club_id,
+        is_available=lens.is_available
     )
 
 
@@ -776,6 +834,18 @@ def archive_lens(session: Session, lens_id: UUID) -> None:
         raise HTTPException(status_code=400, detail="Cannot archive lens with flight tasks")
 
     lens.is_available = False
+    session.add(lens)
+    session.commit()
+
+
+def activate_lens(session: Session, lens_id: UUID) -> None:
+    lens = session.get(Lens, lens_id)
+    if not lens:
+        raise HTTPException(status_code=404, detail="Lens not found")
+    if lens.is_available:
+        raise HTTPException(status_code=400, detail="Lens is already available")
+
+    lens.is_available = True
     session.add(lens)
     session.commit()
 

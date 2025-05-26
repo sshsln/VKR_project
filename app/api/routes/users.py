@@ -180,6 +180,23 @@ def deactivate_user(
     return Message(message="User deactivated successfully")
 
 
+@router.patch("/{user_id}/activate", dependencies=[Depends(get_current_active_superuser)])
+def activate_user(
+    session: SessionDep, current_user: CurrentUser, user_id: uuid.UUID
+) -> Message:
+    user = session.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if user.is_available:
+        raise HTTPException(
+            status_code=400, detail="User is already activated"
+        )
+    user.is_available = True
+    session.add(user)
+    session.commit()
+    return Message(message="User activated successfully")
+
+
 @router.delete("/{user_id}", dependencies=[Depends(get_current_active_superuser)])
 def delete_user(
     session: SessionDep, current_user: CurrentUser, user_id: uuid.UUID
