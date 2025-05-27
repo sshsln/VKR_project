@@ -421,14 +421,19 @@ def update_club(session: Session, club_id: UUID, club_in: ClubUpdate) -> ClubAdm
     if not club:
         raise HTTPException(status_code=404, detail="Club not found")
 
-    club.name = club_in.name
-    club.address = club_in.address
-    club.latitude = club_in.latitude
-    club.longitude = club_in.longitude
+    if club_in.name is not None:
+        club.name = club_in.name
+    if club_in.address is not None:
+        club.address = club_in.address
+    if club_in.latitude is not None:
+        club.latitude = club_in.latitude
+    if club_in.longitude is not None:
+        club.longitude = club_in.longitude
 
     session.add(club)
     session.commit()
     session.refresh(club)
+
     return ClubAdmin(
         id=club.id,
         name=club.name,
@@ -560,7 +565,7 @@ def update_drone(session: Session, drone_id: UUID, drone_in: DroneUpdate) -> Dro
         model=drone.model,
         club_id=drone.club_id,
         battery_charge=drone.battery_charge,
-        is_available = drone.is_available
+        is_available=drone.is_available
     )
 
 

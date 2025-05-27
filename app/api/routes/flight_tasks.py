@@ -199,7 +199,7 @@ async def update_flight_task(
     lens = session.get(Lens, task.lens_id)
     club = session.get(Club, order.club_id)
 
-    return Message(message="Flight task and associated route deleted successfully")
+    return Message(message="Flight task and associated route updated successfully")
 
 
 @router.delete("/{flight_task_id}", response_model=Message, dependencies=[Depends(get_current_active_superuser)])
